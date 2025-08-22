@@ -86,10 +86,10 @@
   </main>
 
   <script>
-    async function loadConfig() {
-      const res = await fetch('/config-proxy');
-      return res.json();
-    }
+async function loadConfig() {
+  const res = await fetch('https://tonshop-api.onrender.com/config', { cache: 'no-store' });
+  return res.json();
+}
 
     function toNano(ton) {
       return Math.round(Number(ton) * 1e9);
