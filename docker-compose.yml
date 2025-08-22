@@ -1,0 +1,27 @@
+services:
+  api:
+    build: ./api
+    container_name: tonshop-api
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./.env
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: tonshop-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  bot:
+    build: ./bot
+    container_name: tonshop-bot
+    env_file:
+      - ./.env
+    depends_on:
+      - api
+    restart: unless-stopped
