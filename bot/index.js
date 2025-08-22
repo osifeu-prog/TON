@@ -1,31 +1,35 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import express from 'express';
 import { Telegraf, Markup } from 'telegraf';
 import OpenAI from 'openai';
 
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (!token) {
-  console.log('[bot] TELEGRAM_BOT_TOKEN not set. Bot will not start.');
-  process.exit(0);
+const {
+  TELEGRAM_BOT_TOKEN,
+  FRONTEND_URL = 'https://tonfront.onrender.com',
+  TELEGRAM_COMMUNITY_LINK = 'https://t.me/YourCommunity',
+  OPENAI_API_KEY,
+  BOT_PUBLIC_URL, // נעדכן אחרי הדיפלוי הראשון
+  PORT
+} = process.env;
+
+if (!TELEGRAM_BOT_TOKEN) {
+  console.error('[bot] TELEGRAM_BOT_TOKEN missing');
+  process.exit(1);
 }
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
-const COMMUNITY = process.env.TELEGRAM_COMMUNITY_LINK || 'https://t.me/YourCommunity';
-const openaiKey = process.env.OPENAI_API_KEY;
+const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-const bot = new Telegraf(token);
-
-bot.start((ctx) => {
-  return ctx.reply(
-    'ברוכים הבאים! כאן תוכלו לתמוך ביוצר דרך TON ולקבל גישה לתוכן.\nבחרו פעולה:',
-    Markup.inlineKeyboard([
-      [Markup.button.url('כניסה לפלטפורמה', FRONTEND_URL)],
-      [Markup.button.url('הצטרפות לקהילה', COMMUNITY)],
-      [Markup.button.callback('איך זה עובד?', 'HOWITWORKS')]
-    ])
-  );
-});
+// ---- Handlers ----
+bot.start((ctx) => ctx.reply(
+  'ברוכים הבאים! כאן תוכלו לתמוך ביוצר דרך TON ולקבל גישה לתוכן.\nבחרו פעולה:',
+  Markup.inlineKeyboard([
+    [Markup.button.url('כניסה לפלטפורמה', FRONTEND_URL)],
+    [Markup.button.url('הצטרפות לקהילה', TELEGRAM_COMMUNITY_LINK)],
+    [Markup.button.callback('איך זה עובד?', 'HOWITWORKS')]
+  ])
+));
 
 bot.action('HOWITWORKS', async (ctx) => {
   await ctx.answerCbQuery();
@@ -41,10 +45,9 @@ bot.command('donate', (ctx) => {
 bot.command('ask', async (ctx) => {
   const prompt = ctx.message.text.replace('/ask', '').trim();
   if (!prompt) return ctx.reply('שלחו: /ask <שאלה>');
-  if (!openaiKey) return ctx.reply('תכונת AI מושבתת (אין OPENAI_API_KEY).');
-
+  if (!OPENAI_API_KEY) return ctx.reply('תכונת AI מושבתת (אין OPENAI_API_KEY).');
   try {
-    const openai = new OpenAI({ apiKey: openaiKey });
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -60,9 +63,29 @@ bot.command('ask', async (ctx) => {
   }
 });
 
-bot.launch().then(() => {
-  console.log('[bot] started');
-});
+// ---- Webhook server ----
+const app = express();
+app.use(express.json());
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'bot', time: new Date().toISOString() }));
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+// כל קריאות ה-webhook יגיעו לנתיב /webhook
+app.use('/webhook', bot.webhookCallback('/webhook'));
+
+// קובע webhook אוטומטית פעם אחת כשהשרת עולה (אם יש URL ציבורי)
+(async () => {
+  const base = (BOT_PUBLIC_URL || '').replace(/\/$/, '');
+  if (base.startsWith('http')) {
+    const url = `${base}/webhook`;
+    try {
+      await bot.telegram.setWebhook(url);
+      console.log('[bot] setWebhook:', url);
+    } catch (e) {
+      console.error('[bot] setWebhook error:', e.message);
+    }
+  } else {
+    console.warn('[bot] BOT_PUBLIC_URL not set yet; set it to your Render URL and redeploy.');
+  }
+})();
+
+const port = Number(PORT || 10000);
+app.listen(port, () => console.log(`[bot] listening on :${port}`));
