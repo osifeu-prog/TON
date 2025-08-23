@@ -3,165 +3,144 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TON Front — תוכן + תרומות</title>
+  <title>TON Tip Store</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;600;800&display=swap" rel="stylesheet"/>
-  <style>
-    body { font-family: Rubik, system-ui, "Segoe UI", Arial; }
-    .glass { backdrop-filter: blur(12px); }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style> body{font-family:Rubik,system-ui,Segoe UI,Arial} .glass{backdrop-filter:blur(12px)} </style>
 
-  <!-- TON Connect UI via ESM (מוכן בכרום/כרום מובייל; אם תרצה גרסת UMD אמיר) -->
+  <!-- TON Connect UI (ESM) -->
   <script type="module">
     import { TonConnectUI, THEME } from 'https://esm.run/@tonconnect/ui@2.2.0';
-    window.__TonConnect = { TonConnectUI, THEME };
+    // חושף ל-window כדי שסקריפטים אחרים יוכלו להשתמש
+    window.__TCUI = { TonConnectUI, THEME };
   </script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
-  <!-- HEADER -->
   <header class="p-6">
-    <div class="max-w-6xl mx-auto flex items-center justify-between">
-      <div class="text-2xl font-extrabold tracking-tight">TON Front</div>
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="text-2xl font-extrabold tracking-tight">TON Tip Store</div>
       <a id="communityLinkTop" class="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition shadow">הצטרפות לקהילה</a>
     </div>
   </header>
 
-  <!-- MAIN -->
-  <main class="max-w-6xl mx-auto px-6">
-    <!-- שתי עמודות בדסקטופ, טור אחד במובייל -->
-    <div class="grid gap-8 md:grid-cols-2 items-start">
+  <main class="max-w-5xl mx-auto px-6">
+    <!-- שתי עמודות כבר מ-640px -->
+    <div class="grid sm:grid-cols-2 gap-8 items-stretch">
       <!-- מידע / פרימיום -->
       <section class="p-6 rounded-3xl bg-white/60 glass shadow-lg">
-        <img id="heroImg"
-             src="/assets/hero.jpg"
+        <img src="/assets/hero.jpg"
              onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=1470&auto=format&fit=crop';"
-             class="rounded-2xl w-full h-56 object-cover mb-5" alt="hero" />
-        <h1 class="text-3xl font-extrabold mb-3">מידע פרימיום / מוצר דיגיטלי</h1>
+             class="rounded-2xl w-full h-56 object-cover mb-4" alt="hero" />
+        <h1 class="text-3xl font-extrabold mb-2">מידע פרימיום / מוצר דיגיטלי</h1>
         <p class="text-gray-700 leading-relaxed">
-          כאן תיאור קצר וברור של התוכן – מה מקבלים, למי זה מתאים ולמה זה שווה. מומלץ 2–4 משפטים ממוקדים שמובילים לתמיכה ביוצר.
+          כאן תיאור קצר של התוכן שמקבלים כשלוחצים על הקישור — סקירה, מדריך, או מוצר דיגיטלי.
+          הגישה פתוחה לכולם, ובבקשה <strong>תרמו</strong> כדי לתמוך ביוצר.
         </p>
-        <ul class="mt-5 grid sm:grid-cols-2 gap-3 text-sm">
-          <li class="p-3 rounded-xl bg-blue-50 text-blue-900">✅ עדכונים שוטפים</li>
-          <li class="p-3 rounded-xl bg-blue-50 text-blue-900">✅ מדריכים ותבניות</li>
-          <li class="p-3 rounded-xl bg-blue-50 text-blue-900">✅ קהילה תומכת</li>
-          <li class="p-3 rounded-xl bg-blue-50 text-blue-900">✅ תמיכה ישירה ביוצר</li>
-        </ul>
-        <div class="mt-5 rounded-xl bg-emerald-50 p-4 text-emerald-900">
-          💡 אחרי תרומה – ייפתח בונוס/קישור/קובץ 🎁 (MVP).
+        <div class="mt-4 rounded-xl bg-blue-50 p-4 text-blue-900">
+          💡 זהו MVP: תרומה "רכה". אחרי התרומה תוכלו לפתוח בונוס/קובץ/הפתעה 🎁
         </div>
       </section>
 
-      <!-- כרטיס תרומה (דבוק למעלה בדסקטופ) -->
-      <aside class="p-6 rounded-3xl bg-white shadow-xl md:sticky md:top-6">
-        <div class="flex items-center justify-between gap-4">
-          <h2 class="text-2xl font-bold">תמכו ביוצר</h2>
-          <!-- כאן TON Connect יצייר את כפתור ההתחברות -->
-          <div id="ton-connect"></div>
-        </div>
+      <!-- תרומה / ארנק -->
+      <section class="p-6 rounded-3xl bg-white shadow-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold mb-3">תמכו ביוצר</h2>
+            <!-- כאן TON Connect יצייר כפתור התחברות -->
+            <div id="ton-connect"></div>
+          </div>
 
-        <div class="mt-4">
           <label class="block text-sm text-gray-600 mb-1">סכום התרומה (TON)</label>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3">
             <input id="amount" type="number" step="0.01" min="0"
-                   class="w-40 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring focus:border-blue-400"
-                   value="0.5" />
-            <button id="donateBtn"
-                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition shadow">
-              תרום עכשיו
-            </button>
-            <!-- תשלום מתוך הארנק המחובר -->
-            <button id="payWithWallet"
-                    class="px-4 py-2 rounded-xl border hover:bg-gray-50 transition">
-              שלם דרך הארנק
-            </button>
+              class="w-40 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring focus:border-blue-400"
+              value="0.5" />
+            <button id="donateBtn" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition shadow">תרום עכשיו</button>
+            <button id="payWithWallet" class="px-4 py-2 rounded-xl border hover:bg-gray-50 transition">שלם דרך הארנק</button>
+            <button id="disconnectWallet" class="px-4 py-2 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 transition hidden">התנתק ארנק</button>
           </div>
-        </div>
 
-        <div class="mt-4">
-          <label class="block text-sm text-gray-600 mb-1">כתובת היוצר (TON)</label>
-          <div class="flex items-center gap-2">
-            <code id="address" class="px-3 py-2 bg-gray-100 rounded-xl text-sm overflow-x-auto">loading…</code>
-            <button id="copyBtn" class="px-3 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-sm">העתק</button>
+          <div class="mt-4">
+            <label class="block text-sm text-gray-600 mb-1">כתובת היוצר (TON)</label>
+            <div class="flex items-center gap-2">
+              <code id="address" class="px-3 py-2 bg-gray-100 rounded-xl text-sm overflow-x-auto">loading…</code>
+              <button id="copyBtn" class="px-3 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-sm">העתק</button>
+            </div>
           </div>
-        </div>
 
-        <div class="mt-4 text-sm text-gray-600">
-          אין ארנק? התקינו <strong>Tonkeeper</strong> / <strong>Tonhub</strong>.
-        </div>
-
-        <div class="mt-6 border-t pt-4">
-          <h3 class="font-semibold mb-2">דרכי תשלום מהירות</h3>
-          <div class="flex flex-wrap gap-3">
-            <a id="deepLinkTon" class="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700" target="_blank">פתח בארנק (ton://)</a>
-            <a id="deepLinkHub" class="px-3 py-2 rounded-xl bg-gray-800 text-white hover:bg-black" target="_blank">Tonhub (חלופי)</a>
+          <div class="mt-3 text-sm text-gray-600">
+            אין ארנק? חפשו <strong>Tonkeeper</strong> / <strong>Tonhub</strong> בחנות האפליקציות.
           </div>
-        </div>
 
-        <div class="mt-6 rounded-xl bg-green-50 p-4 text-green-900 hidden" id="unlockedBox">
-          ✅ תודה! התוכן הנוסף נחשף: <a href="#" class="underline">הורדת קובץ/קישור בונוס</a>
+          <div class="mt-6 border-t pt-4">
+            <h3 class="font-semibold mb-2">דרכי תשלום מהירות</h3>
+            <div class="flex flex-wrap gap-3">
+              <a id="deepLinkTon" class="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700" target="_blank">פתח בארנק (ton://)</a>
+              <a id="deepLinkHub" class="px-3 py-2 rounded-xl bg-gray-800 text-white hover:bg-black" target="_blank">Tonhub (חלופי)</a>
+            </div>
+          </div>
+
+          <div class="mt-6 rounded-xl bg-green-50 p-4 text-green-900 hidden" id="unlockedBox">
+            ✅ תודה! התוכן הנוסף נחשף: <a href="#" class="underline">הורדת קובץ/קישור בונוס</a>
+          </div>
         </div>
 
         <div class="mt-6 text-right">
-          <button id="unlockBtn" class="px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
-            כבר תרמתי — פתח בונוס
-          </button>
+          <button id="unlockBtn" class="px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">כבר תרמתי — פתח בונוס</button>
+          <div class="mt-2 text-xs text-gray-500" id="tc-status">לא מחובר</div>
         </div>
-
-        <div class="mt-3 text-xs text-gray-500" id="tc-status">לא מחובר</div>
-      </aside>
+      </section>
     </div>
 
-    <!-- בלוק קהילה -->
     <section class="mt-10 p-6 rounded-3xl bg-white/70 glass shadow-lg">
       <h2 class="text-2xl font-extrabold mb-2">הצטרפו לקהילה בטלגרם</h2>
-      <p class="text-gray-700">התייעצו, קבלו עדכונים, ושאלו איך משלבים תשלומי TON בעסק.</p>
-      <a id="communityLinkBottom"
-         class="mt-4 inline-block px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow">
-        מעבר לקהילה
-      </a>
+      <p class="text-gray-700">התייעצו, קבלו עדכונים, וקבלו תמיכה בשילוב תשלומי TON לעסק שלכם.</p>
+      <a id="communityLinkBottom" class="mt-4 inline-block px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow">מעבר לקהילה</a>
     </section>
 
     <footer class="py-10 text-center text-gray-500">
-      נבנה ל-MVP על TON 🚀
+      נבנה במהירות עבור MVP על TON 🚀
     </footer>
   </main>
 
-  <!-- סקריפטים: קונפיג + דיפ לינקים + TON Connect -->
+  <!-- === לוגיקת קונפיג + Deep Links === -->
   <script>
-    const API_BASE = 'https://ton-2eg2.onrender.com'; // כתובת ה-API שלך ב-Render
+    const API_BASE = 'https://ton-2eg2.onrender.com'; // שירות ה-API שלך ב-Render
 
-    async function fetchJSON(u){ const r = await fetch(u, {cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
-    function toNano(ton){ return Math.round(Number(ton) * 1e9); }
-    function encodeQuery(q){ return Object.entries(q).map(([k,v])=>k+'='+encodeURIComponent(String(v))).join('&'); }
+    async function loadConfig() {
+      const res = await fetch(API_BASE + '/config', { cache: 'no-store' });
+      return res.json();
+    }
+    function toNano(ton) { return Math.round(Number(ton) * 1e9); }
+    function encodeQuery(q) { return Object.entries(q).map(([k,v]) => k + '=' + encodeURIComponent(String(v))).join('&'); }
+    function saveUnlocked() { localStorage.setItem('unlocked','1'); }
+    function isUnlocked() { return localStorage.getItem('unlocked')==='1'; }
+    function showUnlocked() { document.getElementById('unlockedBox').classList.remove('hidden'); }
 
-    // DOM
-    const addrEl   = document.getElementById('address');
-    const copyBtn  = document.getElementById('copyBtn');
-    const donateBtn = document.getElementById('donateBtn');
-    const amountEl = document.getElementById('amount');
-    const deepLinkTon = document.getElementById('deepLinkTon');
-    const deepLinkHub = document.getElementById('deepLinkHub');
-    const unlockBtn = document.getElementById('unlockBtn');
-    const commTop = document.getElementById('communityLinkTop');
-    const commBot = document.getElementById('communityLinkBottom');
+    (async () => {
+      const cfg = await loadConfig();
+      const addrEl = document.getElementById('address');
+      const copyBtn = document.getElementById('copyBtn');
+      const donateBtn = document.getElementById('donateBtn');
+      const deepLinkTon = document.getElementById('deepLinkTon');
+      const deepLinkHub = document.getElementById('deepLinkHub');
+      const amountEl = document.getElementById('amount');
+      const unlockBtn = document.getElementById('unlockBtn');
+      const commTop = document.getElementById('communityLinkTop');
+      const commBot = document.getElementById('communityLinkBottom');
 
-    function saveUnlocked(){ localStorage.setItem('unlocked','1'); }
-    function isUnlocked(){ return localStorage.getItem('unlocked') === '1'; }
-    function showUnlocked(){ document.getElementById('unlockedBox').classList.remove('hidden'); }
+      window.__cfg = cfg; // נחשף גם לסקריפט TON Connect
 
-    async function boot(){
-      const cfg = await fetchJSON(`${API_BASE}/config`);
-      window.__cfg = cfg;
-
-      // עדכון כתובת/לינקים
       addrEl.textContent = cfg.sellerTonAddress || '—';
       amountEl.value = cfg.minDonationTon ?? 0.5;
-      if (commTop) commTop.href = cfg.communityLink;
-      if (commBot) commBot.href = cfg.communityLink;
+      if (cfg.communityLink) {
+        commTop.href = cfg.communityLink;
+        commBot.href = cfg.communityLink;
+      }
 
-      function updateLinks(){
+      function updateLinks() {
         const amt = amountEl.value || cfg.minDonationTon || 0.5;
         deepLinkTon.href = `ton://transfer/${cfg.sellerTonAddress}?` + encodeQuery({ amount: toNano(amt), text: 'Thanks for your work!' });
         deepLinkHub.href = `https://tonhub.com/transfer/${cfg.sellerTonAddress}?` + encodeQuery({ amount: amt, text: 'Thanks for your work!' });
@@ -170,81 +149,71 @@
       amountEl.addEventListener('input', updateLinks);
 
       copyBtn.onclick = async () => {
-        try { await navigator.clipboard.writeText(cfg.sellerTonAddress); copyBtn.textContent = 'הועתק!'; setTimeout(()=>copyBtn.textContent='העתק', 1200); }
-        catch { alert('לא ניתן להעתיק אוטומטית בדפדפן זה'); }
+        try {
+          await navigator.clipboard.writeText(cfg.sellerTonAddress);
+          copyBtn.textContent = 'הועתק!';
+          setTimeout(() => copyBtn.textContent = 'העתק', 1200);
+        } catch { alert('לא ניתן להעתיק אוטומטית בדפדפן זה'); }
       };
 
+      // תרום עכשיו: ton:// ואז פולבק אוטומטי ל-Tonhub אם אין handler
       donateBtn.onclick = () => {
         updateLinks();
         saveUnlocked();
         showUnlocked();
-        // ניסיון לפתוח ton:// בדפדפן/מכשיר
         window.location.href = deepLinkTon.href;
-        // נפילה אוטומטית ל-Tonhub אם אין handler
         setTimeout(() => {
           if (document.visibilityState === 'visible') window.location.href = deepLinkHub.href;
         }, 1200);
       };
 
-      unlockBtn.onclick = () => { if (isUnlocked()) showUnlocked(); else alert('נפתח אחרי תרומה (MVP). תודה!'); };
-
+      unlockBtn.onclick = () => { if (isUnlocked()) showUnlocked(); else alert('ב-MVP זה נפתח אחרי תרומה. תודה!'); };
       if (isUnlocked()) showUnlocked();
-    }
-
-    boot().catch(e => { console.error(e); alert('שגיאה בטעינת קונפיג.'); });
+    })();
   </script>
 
-  <!-- TON Connect: חיבור ושליחה דרך ארנק -->
+  <!-- === TON Connect: חיבור/התנתקות + תשלום דרך ארנק === -->
   <script type="module">
-    const { TonConnectUI, THEME } = window.__TonConnect || {};
+    const { TonConnectUI } = window.__TCUI || {};
     const statusEl = document.getElementById('tc-status');
     const payBtn = document.getElementById('payWithWallet');
+    const disconnectBtn = document.getElementById('disconnectWallet');
     const amountInput = document.getElementById('amount');
 
     function toNanoStr(x){ return (Math.round(Number(x) * 1e9)).toString(); }
 
-    // אתחול כפתור חיבור
-    const tonConnectUI = new TonConnectUI({
+    // אתחול כפתור החיבור (מצייר אוטומטית ל-div#ton-connect)
+    const tc = new TonConnectUI({
       manifestUrl: 'https://tonfront.onrender.com/tonconnect-manifest.json',
       buttonRootId: 'ton-connect',
       uiPreferences: { theme: 'SYSTEM' }
     });
 
-    tonConnectUI.onStatusChange((w) => {
+    // עדכון סטטוס + הצגת כפתור התנתקות
+    tc.onStatusChange((w) => {
       if (w?.account?.address) {
         const a = w.account.address;
         statusEl.textContent = `מחובר: ${a.slice(0,6)}…${a.slice(-4)}`;
-      } else statusEl.textContent = 'לא מחובר';
+        disconnectBtn.classList.remove('hidden');
+      } else {
+        statusEl.textContent = 'לא מחובר';
+        disconnectBtn.classList.add('hidden');
+      }
     });
 
+    // תשלום ישירות מהארנק המחובר
     payBtn.addEventListener('click', async () => {
       try {
-        // ודא שיש קונפיג
         const cfg = window.__cfg || await (await fetch('https://ton-2eg2.onrender.com/config', {cache:'no-store'})).json();
         const seller = cfg?.sellerTonAddress;
         if (!seller) { alert('SELLER_TON_ADDRESS חסר ב-API'); return; }
 
-        // ודא חיבור
-        if (!await tonConnectUI.connected) {
-          await tonConnectUI.openModal();
+        if (!await tc.connected) {
+          await tc.openModal();
+          // המתן עד חיבור
           await new Promise((res) => {
-            const off = tonConnectUI.onStatusChange((w)=>{ if (w?.account) { off(); res(); }});
+            const off = tc.onStatusChange((w)=>{ if (w?.account) { off(); res(); }});
           });
         }
 
-        const amt = amountInput.value && Number(amountInput.value) > 0 ? Number(amountInput.value) : (cfg?.minDonationTon || 0.5);
-        const tx = {
-          validUntil: Math.floor(Date.now()/1000) + 600,
-          messages: [{ address: seller, amount: toNanoStr(amt) }]
-        };
-
-        await tonConnectUI.sendTransaction(tx, { skipRedirectToWallet: 'ios' });
-        alert('הבקשה נשלחה לארנק. אשר/י בארנק כדי להשלים.');
-      } catch (e) {
-        console.error(e);
-        alert('שגיאה בשליחה דרך הארנק.');
-      }
-    });
-  </script>
-</body>
-</html>
+        const amt = amountInput.value && Number(am
