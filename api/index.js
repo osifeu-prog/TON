@@ -1,3 +1,4 @@
+// api/index.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -11,7 +12,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // לפרודקשן אפשר לצמצם ל-origin הספציפי
+app.use(cors()); // לפרודקשן אפשר לצמצם ל-origin ספציפי
 
 // === CONFIG ===
 const cfg = {
@@ -20,8 +21,7 @@ const cfg = {
   frontendUrl: process.env.FRONTEND_URL || 'https://tonfront.onrender.com',
   communityLink: process.env.TELEGRAM_COMMUNITY_LINK || '',
   botLink: process.env.TELEGRAM_BOT_LINK || '',
-  // חדש: יעד לכפתור "מעבר לאתר שלי" (מנוהל מה-ENV)
-  walletRedirectUrl: process.env.WALLET_REDIRECT_URL || ''
+  walletRedirectUrl: process.env.WALLET_REDIRECT_URL || '' // ← חדש
 };
 
 // === Rate Limit בסיסי ===
@@ -46,7 +46,6 @@ function appendLog(line) {
   catch (e) { console.error('[log] append error', e); }
 }
 
-// Postgres
 const { Pool } = pkg;
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const pool = DATABASE_URL
@@ -70,7 +69,7 @@ async function ensureSchema() {
 }
 ensureSchema().catch(console.error);
 
-// MVP "רך": כל קריאה מהפרונט תרשם ללוג/DB
+// MVP "רך": לוג/DB
 app.post('/log-donation', async (req, res) => {
   const body = req.body || {};
   console.log('[donation]', body);
@@ -83,19 +82,16 @@ app.post('/log-donation', async (req, res) => {
         'insert into donations(amount_ton,to_addr,from_addr,source,comment,meta) values ($1,$2,$3,$4,$5,$6)',
         [amountTon ?? null, to ?? null, from ?? null, source ?? null, comment ?? null, meta ?? null]
       );
-    } catch (e) {
-      console.error('[db insert]', e);
-    }
+    } catch (e) { console.error('[db insert]', e); }
   }
 
   res.json({ ok: true });
 });
 
-// (אופציונלי) אימות קשיח על-שרשרת — TonAPI / Toncenter
+// (אופציונלי) אימות קשיח על שרשרת
 const TONAPI_KEY = process.env.TONAPI_KEY || '';
 const TONCENTER_KEY = process.env.TONCENTER_API_KEY || '';
 
-// helper: TonAPI
 async function verifyWithTonAPI({ seller, from, minAmountTon, sinceTs }) {
   if (!TONAPI_KEY) return { supported: false };
   const url = `https://tonapi.io/v2/blockchain/transactions?account=${encodeURIComponent(seller)}&limit=50`;
@@ -118,7 +114,6 @@ async function verifyWithTonAPI({ seller, from, minAmountTon, sinceTs }) {
   return { ok: true, found: !!hit };
 }
 
-// helper: Toncenter
 async function verifyWithToncenter({ seller, from, minAmountTon, sinceTs }) {
   const u = new URL('https://toncenter.com/api/v2/getTransactions');
   u.searchParams.set('address', seller);
