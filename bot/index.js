@@ -1,97 +1,55 @@
+import express from 'express';
 import dotenv from 'dotenv';
+import { Telegraf } from 'telegraf';
+
 dotenv.config();
 
-import express from 'express';
-import { Telegraf, Markup } from 'telegraf';
-// "ask" אופציונלי; אם אין OPENAI_API_KEY לא נשתמש
-import OpenAI from 'openai';
-
-const {
-  TELEGRAM_BOT_TOKEN,
-  FRONTEND_URL = 'https://tonfront.onrender.com',
-  TELEGRAM_COMMUNITY_LINK = 'https://t.me/+HIzvM8sEgh1kNWY0',
-  BOT_PUBLIC_URL = '', // לדוגמה: https://tonbot-n6q0.onrender.com  (בלי / בסוף)
-  OPENAI_API_KEY,
-  PORT
-} = process.env;
-
-if (!TELEGRAM_BOT_TOKEN) {
-  console.error('[bot] Missing TELEGRAM_BOT_TOKEN');
-  process.exit(1);
-}
-
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
-
-// ===== Handlers =====
-bot.start((ctx) => ctx.reply(
-  'ברוך הבא! כאן תוכל לתרום ליוצר ולקבל גישה לתוכן.\nבחר פעולה:',
-  Markup.inlineKeyboard([
-    [Markup.button.url('כניסה לפלטפורמה', FRONTEND_URL)],
-    [Markup.button.url('הצטרפות לקהילה', TELEGRAM_COMMUNITY_LINK)],
-    [Markup.button.callback('איך זה עובד?', 'HOWITWORKS')]
-  ])
-));
-
-bot.action('HOWITWORKS', async (ctx) => {
-  await ctx.answerCbQuery();
-  await ctx.reply('נכנסים לפלטפורמה, בוחרים סכום, ולוחצים "שלם דרך הארנק" או משלימים דרך הטלגרם.');
-});
-
-bot.command('donate', (ctx) => {
-  ctx.reply('לתרומה מהירה:', Markup.inlineKeyboard([
-    [Markup.button.url('פתח את הפלטפורמה', FRONTEND_URL)]
-  ]));
-});
-
-// אופציונלי: /ask אם תוסיף OPENAI_API_KEY
-bot.command('ask', async (ctx) => {
-  const prompt = ctx.message.text.replace('/ask', '').trim();
-  if (!prompt) return ctx.reply('שלחו: /ask <שאלה>');
-  if (!OPENAI_API_KEY) return ctx.reply('תכונת AI מושבתת (אין OPENAI_API_KEY).');
-
-  try {
-    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant that routes users to a TON tip-based storefront.' },
-        { role: 'user', content: prompt }
-      ]
-    });
-    const text = resp.choices?.[0]?.message?.content?.trim() || '—';
-    await ctx.reply(text + `\n\n👉 פתיחת תשלומים: ${FRONTEND_URL}`);
-  } catch (e) {
-    console.error(e);
-    await ctx.reply('שגיאה בפניית AI.');
-  }
-});
-
-// ===== Webhook server =====
 const app = express();
 app.use(express.json());
 
-// בריאות + עמוד שורש נחמד
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'bot', time: new Date().toISOString() }));
-app.get('/', (_req, res) => res.type('text/plain').send('TON bot is running. Webhook at /webhook'));
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const PUBLIC_URL = (process.env.BOT_PUBLIC_URL || '').replace(/\/+$/,''); // בלי / בסוף
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://tonfront.onrender.com';
 
-// כל קריאות ה-webhook יגיעו לנתיב /webhook
-app.use('/webhook', bot.webhookCallback('/webhook'));
+if (!BOT_TOKEN) {
+  console.error('TELEGRAM_BOT_TOKEN missing');
+  process.exit(1);
+}
 
-// קובע webhook אוטומטית כשהשרת עולה (אם יש URL ציבורי)
-(async () => {
-  const base = (BOT_PUBLIC_URL || '').replace(/\/$/, ''); // מוריד / בסוף אם יש
-  if (base.startsWith('http')) {
-    const url = `${base}/webhook`;
-    try {
-      await bot.telegram.setWebhook(url);
-      console.log('[bot] setWebhook:', url);
-    } catch (e) {
-      console.error('[bot] setWebhook error:', e.message);
-    }
+const bot = new Telegraf(BOT_TOKEN, { handlerTimeout: 9_000 });
+
+bot.start(async (ctx) => {
+  const p = ctx.startPayload || '';
+  if (p.startsWith('donate_')) {
+    const amt = p.slice('donate_'.length);
+    await ctx.reply(`מעולה! סכום מוצע: ${amt} TON.
+1) פתחו את הארנק ובצעו תשלום.
+2) חזרו לאתר לקבלת ההטבה: ${FRONTEND_URL}`);
+  } else if (p === 'help') {
+    await ctx.reply(`שאלות? אנחנו כאן. אפשר לחזור לאתר: ${FRONTEND_URL}`);
   } else {
-    console.warn('[bot] BOT_PUBLIC_URL not set; set it to your Render URL and redeploy.');
+    await ctx.reply('ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.');
   }
-})();
+});
 
-const port = Number(PORT || 10000);
+// health
+app.get('/health', (_req,res) => res.json({ ok:true, service:'bot', time:new Date().toISOString() }));
+
+// webhook
+const path = '/webhook';
+app.use(bot.webhookCallback(path));
+
+// set webhook on startup (idempotent)
+async function setup() {
+  if (!PUBLIC_URL) {
+    console.error('BOT_PUBLIC_URL missing (e.g. https://tonbot-xxxx.onrender.com)');
+    process.exit(1);
+  }
+  const hook = `${PUBLIC_URL}${path}`;
+  await bot.telegram.setWebhook(hook);
+  console.log('[bot] webhook set to', hook);
+}
+setup().catch(e => { console.error(e); process.exit(1); });
+
+const port = Number(process.env.PORT || 8080);
 app.listen(port, () => console.log(`[bot] listening on :${port}`));
