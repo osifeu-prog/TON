@@ -116,7 +116,7 @@
           </button>
           <button id="openWallet"
                   class="w-full sm:w-auto px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 transition">
-            מעבר לאתר שלי
+            מעבר לאתר שלנו
           </button>
         </div>
 
@@ -125,7 +125,7 @@
                   class="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
             כבר תרמתי — פתח בונוס
           </button>
-          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן" או לחץ "מעבר לאתר שלי".</div>
+          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן" או לחץ "מעבר לאתר שלנו".</div>
         </div>
       </section>
     </div>
@@ -345,7 +345,7 @@
       openExternal(base);
     });
 
-    // "מעבר לאתר שלי" – עם default אם אין ב־API
+    // "מעבר לאתר שלנו" – עם default אם אין ב־API
     openWalletBtn.addEventListener('click', () => {
       const cfg = window.__cfg || {};
       const url = (cfg.walletRedirectUrl || DEFAULTS.walletRedirectUrl).trim();
