@@ -9,18 +9,14 @@ app.use(express.json());
 // === ENV ===
 const TOKEN   = process.env.TELEGRAM_BOT_TOKEN || '';
 const SELLER  = process.env.SELLER_TON_ADDRESS || '';
-// אתר ברירת מחדל: אם לא הוגדר FRONTEND_URL — נשלח ל-slhisrael.com
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://slhisrael.com').replace(/\/+$/, '');
 const COMMUNITY    = process.env.TELEGRAM_COMMUNITY_LINK || 'https://t.me/+HIzvM8sEgh1kNWY0';
 const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity_bot';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-// תמיכה
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
-const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || ''; // למשל: +972501234567
+const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
-if (!OPENAI_API_KEY) console.warn('[bot] OPENAI_API_KEY missing (AI replies disabled)');
-
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
 
 // === Telegram helpers ===
@@ -30,10 +26,12 @@ async function tg(method, payload) {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
-  return r.json().catch(()=> ({}));
+  const j = await r.json().catch(()=> ({}));
+  if (!j.ok) console.error('[tg err]', method, j);
+  return j;
 }
 
-// --- תפריט ראשי: לחצנים כפי שביקשת ---
+// --- תפריט ראשי: כולל תמיכה ותשלום מיידי בש"ח ---
 function mainMenuKeyboard() {
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
@@ -41,29 +39,43 @@ function mainMenuKeyboard() {
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
     [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
   ];
-  if (SUPPORT_PHONE) {
-    rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
-  }
-  // תשלום מיידי בש״ח
+  if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
+  rows.push([
+    { text: '₪50',  callback_data: 'pay_ils_50' },
+    { text: '₪100', callback_data: 'pay_ils_100' },
+    { text: '₪200', callback_data: 'pay_ils_200' }
+  ]);
   rows.push([{ text: 'תשלום מיידי (₪)', callback_data: 'pay_ils' }]);
+  return { inline_keyboard: rows };
+}
+
+// --- יצירת כפתורי תשלום לכתובת שלך ---
+function paymentKeyboard(amtTon) {
+  const amount = Number(amtTon) || 1;
+  const nano = Math.round(amount * 1e9);
+  const text = encodeURIComponent('Thanks for your work!');
+  const tonDeep  = SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${text}` : null;
+  const tkHttps  = SELLER ? `https://app.tonkeeper.com/transfer/${SELLER}?amount=${nano}&text=${text}` : null; // HTTPS works everywhere
+  const backSite = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
+
+  const rows = [];
+  if (tkHttps) rows.push([{ text: 'פתיחה ב-Tonkeeper', url: tkHttps }]);
+  if (tonDeep) rows.push([{ text: 'פתיחה ב-ארנק TON (deeplink)', url: tonDeep }]);
+  rows.push([{ text: 'פתיחה ב-Telegram Wallet', url: 'https://t.me/wallet' }]);
+  rows.push([{ text: 'חזרה לאתר', url: backSite }]);
+
   return { inline_keyboard: rows };
 }
 
 // --- הודעת תשלום/תרומה בסיסית ---
 function donationText(amtTon) {
   const amount = Number(amtTon) || 1;
-  const nano = Math.round(amount * 1e9);
-  const tonDeep = SELLER
-    ? `ton://transfer/${SELLER}?amount=${nano}&text=${encodeURIComponent('Thanks for your work!')}`
-    : null;
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
-  const lines = [];
-  if (tonDeep) lines.push(`ארנק TON (deeplink): ${tonDeep}`);
-  lines.push(`מעולה! סכום מוצע: ${amount} TON.`);
-  lines.push(`1) פתחו את הארנק ובצעו תשלום.`);
-  lines.push(`2) חזרו לאתר לקבלת ההטבה: ${siteUrl}`);
-  lines.push(`\nTelegram Wallet: https://t.me/wallet`);
-  return lines.join('\n');
+  return [
+    `מעולה! סכום מוצע: ${amount} TON.`,
+    `1) פתחו את הארנק ובצעו תשלום.`,
+    `2) חזרו לאתר לקבלת ההטבה: ${siteUrl}`
+  ].join('\n');
 }
 
 // --- תשובת AI (אופציונלי) ---
@@ -107,21 +119,26 @@ async function fetchTonPriceILS() {
   return ils;
 }
 
-// --- סטייט מינימלי לזיהוי בקשת ₪ ---
-const state = new Map(); // chat_id -> { awaitingIls: true }
+// --- זיהוי “הודעת סכום בש"ח” גם בלי state ---
+function parseIlsLike(text) {
+  if (!text) return null;
+  const cleaned = text.replace(/[^\d.,]/g, '').replace(',', '.'); // "₪ 50", "50 שח", "ILS 50.5"
+  const v = Number(cleaned);
+  return isFinite(v) && v > 0 ? v : null;
+}
 
-// בריאות
+// --- בריאות ---
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'bot', time: new Date().toISOString() });
 });
 
-// Webhook
+// --- Webhook ---
 app.post('/webhook', async (req, res) => {
   try {
     const update = req.body;
-    res.json({ ok: true }); // עונים מיידית לטלגרם
+    res.json({ ok: true }); // השב מידית
 
-    // --- CALLBACK (לחיצה על כפתור) ---
+    // CALLBACK (לחצן)
     if (update.callback_query) {
       const cq = update.callback_query;
       const chat_id = cq.message?.chat?.id;
@@ -146,8 +163,32 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
+      // לחצני “מהיר” בש״ח
+      const quick = data.match(/^pay_ils_(\d+)$/);
+      if (quick) {
+        const ils = Number(quick[1]);
+        try {
+          const priceIls = await fetchTonPriceILS();
+          const ton = Math.max(0.001, +(ils / priceIls).toFixed(3));
+          await tg('sendMessage', {
+            chat_id,
+            text: donationText(ton),
+            disable_web_page_preview: true,
+            reply_markup: paymentKeyboard(ton) // כפתורי תשלום ישירים
+          });
+        } catch (e) {
+          console.error('[price quick]', e?.message || e);
+          await tg('sendMessage', {
+            chat_id,
+            text: 'לא הצלחתי להביא שער כעת. הקלד/י סכום ב-TON (למשל: 1).',
+            reply_markup: mainMenuKeyboard()
+          });
+        }
+        await tg('answerCallbackQuery', { callback_query_id: cq.id });
+        return;
+      }
+
       if (data === 'pay_ils') {
-        state.set(chat_id, { awaitingIls: true });
         await tg('answerCallbackQuery', {
           callback_query_id: cq.id,
           text: 'הקלד/י סכום בש״ח…',
@@ -155,7 +196,7 @@ app.post('/webhook', async (req, res) => {
         });
         await tg('sendMessage', {
           chat_id,
-          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אני אמיר ל-TON ואחזיר לך קישור תשלום 👇',
+          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר קישור תשלום 👇',
           reply_markup: mainMenuKeyboard()
         });
         return;
@@ -165,48 +206,13 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // --- MESSAGE ---
+    // MESSAGE
     const msg = update.message || update.edited_message;
     if (!msg) return;
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
-    // אם מחכים לסכום בש״ח:
-    const st = state.get(chat_id);
-    if (st?.awaitingIls && text) {
-      state.delete(chat_id);
-      // חלץ מספר (תומך ב-"₪ 50", "50 ש\"ח", וכו')
-      const ilsStr = (text.replace(/[^\d.,]/g, '') || '').replace(',', '.');
-      const ils = Number(ilsStr);
-      if (!isFinite(ils) || ils <= 0) {
-        await tg('sendMessage', {
-          chat_id,
-          text: 'לא זיהיתי סכום תקין. נסה/י שוב עם מספר, לדוגמה: 50',
-          reply_markup: mainMenuKeyboard()
-        });
-        return;
-      }
-      try {
-        const priceIls = await fetchTonPriceILS();
-        const ton = Math.max(0.001, +(ils / priceIls).toFixed(3));
-        await tg('sendMessage', {
-          chat_id,
-          text: donationText(ton),
-          disable_web_page_preview: true,
-          reply_markup: mainMenuKeyboard()
-        });
-      } catch (e) {
-        console.error('[price]', e?.message || e);
-        await tg('sendMessage', {
-          chat_id,
-          text: 'לא הצלחתי להביא שער עדכני כרגע. אנא הקלד/י את הסכום ב-TON ישירות (למשל: 1).',
-          reply_markup: mainMenuKeyboard()
-        });
-      }
-      return;
-    }
-
-    // /start עם payload donate_X
+    // /start donate_X
     if (text.startsWith('/start')) {
       const payload = text.split(' ')[1] || '';
       if (payload.startsWith('donate_')) {
@@ -215,11 +221,11 @@ app.post('/webhook', async (req, res) => {
           chat_id,
           text: donationText(amt),
           disable_web_page_preview: true,
-          reply_markup: mainMenuKeyboard()
+          reply_markup: paymentKeyboard(amt)
         });
         return;
       }
-      // /start רגיל — הודעת ברוך הבא + תפריט + המלצה 1 TON
+      // /start רגיל — ברוך הבא + הצעה + תפריט
       await tg('sendMessage', {
         chat_id,
         text: 'ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.',
@@ -229,23 +235,46 @@ app.post('/webhook', async (req, res) => {
         chat_id,
         text: donationText(1),
         disable_web_page_preview: true,
-        reply_markup: mainMenuKeyboard()
+        reply_markup: paymentKeyboard(1)
       });
       return;
     }
 
-    // /menu — תפריט בכל רגע
+    // /menu — תפריט
     if (text === '/menu') {
       await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: mainMenuKeyboard() });
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים), ואז מחזירים גם תפריט
+    // אם ההודעה נראית כמו סכום בש"ח — תפס גם בלי state
+    const ilsMaybe = parseIlsLike(text);
+    if (ilsMaybe) {
+      try {
+        const priceIls = await fetchTonPriceILS();
+        const ton = Math.max(0.001, +(ilsMaybe / priceIls).toFixed(3));
+        await tg('sendMessage', {
+          chat_id,
+          text: donationText(ton),
+          disable_web_page_preview: true,
+          reply_markup: paymentKeyboard(ton)
+        });
+      } catch (e) {
+        console.error('[price ils freeform]', e?.message || e);
+        await tg('sendMessage', {
+          chat_id,
+          text: 'לא הצלחתי להביא שער כעת. הקלד/י את הסכום ב-TON (למשל: 1).',
+          reply_markup: mainMenuKeyboard()
+        });
+      }
+      return;
+    }
+
+    // טקסט חופשי → AI (אם קיים), ואז תפריט
     if (text) {
-      const answer = await aiAnswer(text).catch(e => {
-        console.error('[openai]', e?.status || e?.message || e);
-        return null;
-      });
+      let answer = null;
+      if (OPENAI_API_KEY) {
+        try { answer = await aiAnswer(text); } catch (e) { console.error('[openai]', e?.message || e); }
+      }
       await tg('sendMessage', {
         chat_id,
         text: answer || `לתרומה/תשלום: ${FRONTEND_URL}`,
