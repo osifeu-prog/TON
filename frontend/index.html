@@ -21,6 +21,9 @@
   <meta property="og:url" content="https://tonfront.onrender.com/">
   <meta name="twitter:card" content="summary_large_image">
 
+  <!-- Telegram WebApp SDK (כדי לפתוח קישורים מחוץ למיני-אפ בלי לסגור אותו) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
   <!-- TON Connect UI: כפתור התחברות/התנתקות = הרשמה לאתר -->
   <script type="module">
     import { TonConnectUI } from 'https://esm.run/@tonconnect/ui@2.2.0';
@@ -56,13 +59,13 @@
           src="/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg"
           onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=1470&auto=format&fit=crop';"
           class="rounded-2xl w-full h-48 sm:h-56 md:h-64 object-cover mb-4" alt="hero" />
-        <h1 class="text-2xl sm:text-3xl font-extrabוד mb-2">ארנק טלגרם למסחר חופשי</h1>
+        <h1 class="text-2xl sm:text-3xl font-extrabold mb-2">ארנק טלגרם למסחר חופשי</h1>
         <p class="text-gray-700 leading-relaxed">
           האם ידעתם? כל עוד אתם משתמשים בארנק טלגרם הכספים שלכם המצויים בו מוגדרים כהשקעה לכל דבר, על כן *לא* מחוייבים במס בפועל!!
         </p>
 
         <!-- בלוק טקסט  -->
-        <section class="mt-5 p-4 rounded-2ל bg-gray-50 text-gray-800">
+        <section class="mt-5 p-4 rounded-2xl bg-gray-50 text-gray-800">
           <h3 class="font-bold mb-2">התוכן שלכם/הכסף שלכם/החופש שלכם</h3>
           <p>
             רק דמיינו זירת מסחר חופשית בלי ניתנת למעקב או עיקולים ולמעשה עצמאית לחלוטין, התוכן שלכם יכול להיות כאן!
@@ -143,11 +146,11 @@
     </footer>
   </main>
 
-  <!-- === קונפיג מה-API (עם ברירות־מחדל + פתיחה בטאב חדש לקהילה) === -->
+  <!-- === קונפיג מה-API (עם ברירות-מחדל + פתיחה מחוץ למיני-אפ) === -->
   <script>
     const API_BASE = 'https://ton-2eg2.onrender.com';
 
-    // ברירות־מחדל כדי שהלינקים יעבדו גם אם /config לא חזר
+    // ברירות-מחדל כדי שהלינקים יעבדו גם אם /config מתעכב
     const DEFAULTS = {
       communityLink: 'https://t.me/+HIzvM8sEgh1kNWY0',
       botLink: 'https://t.me/hbdcommunity_bot',
@@ -185,7 +188,7 @@
     }
 
     (async () => {
-      // נטען קונפיג מהשרת ונמזג מעל ברירות־המחדל
+      // מיזוג קונפיג השרת מעל ברירות-המחדל
       const serverCfg = await loadConfigWithRetry().catch(() => ({}));
       const cfg = { ...DEFAULTS, ...(serverCfg || {}) };
       window.__cfg = cfg;
@@ -199,10 +202,20 @@
 
       amountEl.value = cfg.minDonationTon ?? 1;
 
-      // קישורי קהילה — נגדיר href + פתיחה בטאב חדש (עדיף ל־t.me)
+      // נגדיר הפניה חיצונית גם ללינקים של הקהילה (למנוע החלפת המיני-אפ)
       const communityHref = (cfg.communityLink || cfg.botLink || DEFAULTS.communityLink).trim();
-      if (commTop)  { commTop.href  = communityHref || '#'; commTop.target = '_blank'; commTop.rel = 'noopener'; }
-      if (commBot)  { commBot.href  = communityHref || '#'; commBot.target = '_blank'; commBot.rel = 'noopener'; }
+      function wireExternalAnchor(a, url) {
+        if (!a) return;
+        a.href = url || '#';
+        a.target = '_blank'; a.rel = 'noopener';
+        a.addEventListener('click', (ev) => {
+          if (!url) return;
+          ev.preventDefault();
+          openExternal(url);
+        }, { passive: true });
+      }
+      wireExternalAnchor(commTop, communityHref);
+      wireExternalAnchor(commBot, communityHref);
 
       const tc = window.__tonConnectUI;
 
@@ -258,6 +271,23 @@
       msg.innerText = 'המערכת מתחממת… נסו לרענן בעוד מספר שניות. (פרטים בקונסול)';
       document.body.prepend(msg);
     });
+
+    // פונקציה מרכזית לפתיחת קישורים בחלון חדש בלי לפגוע במיני-אפ
+    function openExternal(url) {
+      // חסימת כפולים בכל 800ms
+      if (openExternal._busy) return;
+      openExternal._busy = true;
+      setTimeout(()=>{ openExternal._busy = false; }, 800);
+
+      try {
+        if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink === 'function') {
+          window.Telegram.WebApp.openLink(url, { try_browser: true });
+          return;
+        }
+      } catch {}
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      // לא נופלים ל-location.href כדי להשאיר את המיני-אפ פתוח
+    }
   </script>
 
   <!-- === תשלום (TonConnect) / טלגרם / מעבר לאתר (מה-API) === -->
@@ -265,12 +295,6 @@
     const payNowBtn     = document.getElementById('payNow');
     const tgBtn         = document.getElementById('payWithTelegram');
     const openWalletBtn = document.getElementById('openWallet');
-
-    // עוזר לפתוח URL בטאב חדש; אם נחסם – פולבק לניווט רגיל
-    function openUrlNewTab(url) {
-      const w = window.open(url, '_blank', 'noopener');
-      if (!w) window.location.href = url;
-    }
 
     payNowBtn.addEventListener('click', async () => {
       const cfg = window.__cfg || {};
@@ -304,7 +328,7 @@
         }
       }
 
-      // פולבק: deep link → ואם אנחנו עדיין בדף אחרי 1.2s, פתח Telegram Wallet לרכישה
+      // פולבק: deep link (עלול להחליף טאב) + אם נשארנו בדף → פתיחת Telegram Wallet בחוץ
       const deeplink = `ton://transfer/${seller}?` + new URLSearchParams({ amount: nano, text: 'Thanks for your work!' }).toString();
       let returned = false;
       const onBack = () => {
@@ -322,15 +346,18 @@
       const visHandler = () => { if (document.visibilityState === 'visible') onBack(); };
       document.addEventListener('visibilitychange', visHandler);
 
+      // deep link: רוב הארנקים יטפלו בזה ויבקשו לא לעזוב את האפליקציה
       window.location.href = deeplink;
+
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
-          openUrlNewTab('https://t.me/wallet');
+          // אם הדיפ-לינק לא עבד (עדיין רואים את הדף) – פותחים Telegram Wallet בחוץ
+          openExternal('https://t.me/wallet');
         }
       }, 1200);
     });
 
-    // טלגרם – נפתח בטאב חדש (חשוב למובייל/טלגרם)
+    // טלגרם – נפתח בחוץ (חלון חדש / דפדפן)
     tgBtn.addEventListener('click', () => {
       const cfg = window.__cfg || {};
       const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
@@ -342,14 +369,15 @@
       if (m && m[1].endsWith('_bot')) {
         base = `${base}${base.includes('?') ? '&' : '?'}start=donate_${encodeURIComponent(amt)}`;
       }
-      openUrlNewTab(base);
+      openExternal(base);
     });
 
-    // "מעבר לאתר שלי" – מה-API (עם fallback)
+    // "מעבר לאתר שלי" – מה-API בלבד (ללא fallback ל-tonkeeper)
     openWalletBtn.addEventListener('click', () => {
       const cfg = window.__cfg || {};
-      const url = (cfg.walletRedirectUrl || 'https://tonkeeper.com').trim();
-      openUrlNewTab(url); // או: window.location.href = url;
+      const url = (cfg.walletRedirectUrl || '').trim();
+      if (!url) { alert('walletRedirectUrl לא הוגדר ב-API'); return; }
+      openExternal(url);
     });
   </script>
 </body>
