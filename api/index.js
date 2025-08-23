@@ -1,233 +1,142 @@
-<!doctype html>
-<html lang="he" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TON Tip Store</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;600;800&display=swap" rel="stylesheet">
-  <style>
-    body{font-family:Rubik,system-ui,'Segoe UI',Arial}
-    .glass{backdrop-filter:blur(12px)}
-  </style>
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
+import fetch from 'node-fetch';
+import { fileURLToPath } from 'url';
 
-  <!-- TON Connect UI (רק להתחברות + חזרה לאתר/בוט) -->
-  <script type="module">
-    import { TonConnectUI } from 'https://esm.run/@tonconnect/ui@2.2.0';
-    window.__tonConnectUI = new TonConnectUI({
-      manifestUrl: 'https://tonfront.onrender.com/tonconnect-manifest.json',
-      buttonRootId: 'ton-connect',
-      uiPreferences: { theme: 'SYSTEM' },
-      actionsConfiguration: {
-        returnStrategy: 'https://tonfront.onrender.com',
-        twaReturnUrl: 'https://t.me/hbdcommunity_bot'
-      }
-    });
-  </script>
-</head>
-<body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
-  <!-- HEADER -->
-  <header class="p-4 sm:p-6">
-    <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
-      <div class="text-xl sm:text-2xl font-extrabold tracking-tight">TON Tip Store</div>
-      <a id="communityLinkTop"
-         class="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition shadow w-auto">
-        הצטרפות לקהילה
-      </a>
-    </div>
-  </header>
+dotenv.config();
+const app = express();
+app.use(express.json());
+app.use(cors());
 
-  <!-- MAIN -->
-  <main class="max-w-4xl mx-auto px-4 sm:px-6">
-    <div class="grid gap-6 sm:grid-cols-2 items-start">
-      <!-- מידע / פרימיום -->
-      <section class="p-5 sm:p-6 rounded-3xl bg-white/60 glass shadow-lg">
-        <img
-          src="/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg"
-          onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=1470&auto=format&fit=crop';"
-          class="rounded-2xl w-full h-48 sm:h-56 md:h-64 object-cover mb-4" alt="hero" />
-        <h1 class="text-2xl sm:text-3xl font-extrabold mb-2">ארנק טלגרם למסחר חופשי</h1>
-        <p class="text-gray-700 leading-relaxed">
-          האם ידעתם? כל עוד אתם משתמשים בארנק טלגרם הכספים שלכם המצויים בו מוגדרים כהשקעה לכל דבר, על כן *לא* מחוייבים במס בפועל!!
-        </p>
+// === CONFIG ===
+const cfg = {
+  sellerTonAddress: process.env.SELLER_TON_ADDRESS || '',
+  minDonationTon: Number(process.env.MIN_DONATION_TON || '1'),
+  frontendUrl: process.env.FRONTEND_URL || 'https://tonfront.onrender.com',
+  communityLink: process.env.TELEGRAM_COMMUNITY_LINK || '',
+  botLink: process.env.TELEGRAM_BOT_LINK || ''
+};
 
-        <!-- בלוק טקסט  -->
-        <section class="mt-5 p-4 rounded-2xl bg-gray-50 text-gray-800">
-          <h3 class="font-bold mb-2">התוכן שלכם/הכסף שלכם/החופש שלכם</h3>
-          <p>
-            רק דמיינו זירת מסחר חופשית בלי ניתנת למעקב או עיקולים ולמעשה עצמאית לחלוטין, התוכן שלכם יכול להיות כאן!
-          </p>
-        </section>
+// === Rate Limit בסיסי (מומלץ לפרודקשן) ===
+const limiter = rateLimit({ windowMs: 60_000, max: 60 });
+app.use(limiter);
 
-        <div class="mt-4 rounded-xl bg-blue-50 p-4 text-blue-900">
-          💡 כל תרומה לקידום שיפור יוקר המחיה והתנאים בארצנו תזכה במוצרים יחודיים לחברינו 🎁
-        </div>
-      </section>
+// === בריאות/קונפיג ===
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, service: 'api', time: new Date().toISOString() });
+});
+app.get('/config', (_req, res) => {
+  res.json({ ok: true, ...cfg });
+});
 
-      <!-- בלוק תמיכה/תשלום -->
-      <section class="p-5 sm:p-6 rounded-3xl bg-white shadow-xl md:sticky md:top-6">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-2xl font-bold">תמכו ביוצר</h2>
-          <!-- כפתור התחברות/התנתקות של TON Connect (לזיהוי בלבד) -->
-          <div id="ton-connect"></div>
-        </div>
+// === לוגים: לקובץ גלגול פשוט (fallback אם אין DB) ===
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const LOG_FILE = path.join(__dirname, 'donations.log');
 
-        <div class="mt-4">
-          <label class="block text-sm text-gray-600 mb-1">סכום התרומה (TON)</label>
-          <!-- ליד הסכום: "שלם עכשיו" -->
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input id="amount" type="number" step="0.01" min="0"
-                   class="w-full sm:w-40 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring focus:border-blue-400"
-                   value="1" />
-            <button id="payNow"
-                    class="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition shadow">
-              שלם עכשיו
-            </button>
-          </div>
-        </div>
+function appendLog(line) {
+  try {
+    fs.appendFileSync(LOG_FILE, line + '\n', { encoding: 'utf8' });
+  } catch (e) {
+    console.error('[log] append error', e);
+  }
+}
 
-        <!-- בונוס לאחר תרומה (MVP) -->
-        <div class="mt-6 rounded-xl bg-green-50 p-4 text-green-900 hidden" id="unlockedBox">
-          ✅ תודה על תרומתכם! התוכן נחשף: <a href="#" class="underline">הורדת קובץ/קישור בונוס</a>
-        </div>
+// === POST /log-donation  (MVP "רך") ===
+app.post('/log-donation', (req, res) => {
+  const body = req.body || {};
+  console.log('[donation]', body);
+  appendLog(JSON.stringify({ t: Date.now(), ...body }));
+  res.json({ ok: true });
+});
 
-        <!-- שני הכפתורים הועברו לכאן (למטה) בלי לשנות טקסט -->
-        <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button id="payWithTelegram"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl border hover:bg-gray-50 transition">
-            לבוט טלגרם שלנו
-          </button>
-          <button id="openWallet"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 transition">
-            מעבר לארנק טון
-          </button>
-        </div>
+// === אימות קשיח על-שרשרת (Hard Verify) ===
+// אפשר לעבוד מול TonAPI או Toncenter. ננסה לפי המפתח שקיים בסביבה.
+const TONAPI_KEY = process.env.TONAPI_KEY || '';
+const TONCENTER_KEY = process.env.TONCENTER_API_KEY || ''; // optional
 
-        <div class="mt-4 text-right">
-          <button id="unlockBtn"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
-            כבר תרמתי — פתח בונוס
-          </button>
-          <div class="mt-2 text-xs text-gray-500" id="tc-status">לא מחובר</div>
-        </div>
-      </section>
-    </div>
+// helper: בודק דרך TonAPI אם יש טרנזקציה נכנסת ל-seller מאז זמן נתון
+async function verifyWithTonAPI({ seller, from, minAmountTon, sinceTs }) {
+  if (!TONAPI_KEY) return { supported: false };
+  // TonAPI מספקת endpoints לעבודה עם טרנזקציות; נשתמש ב-search לפי כתובת היעד ומגבלת זמן.
+  // הערה: בפועל כדאי להשתמש ב-/v2/blockchain/transactions של TonAPI עם פילטרים מתאימים.
+  const url = `https://tonapi.io/v2/blockchain/transactions?account=${encodeURIComponent(seller)}&limit=50`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${TONAPI_KEY}` }});
+  if (!r.ok) return { ok: false, status: r.status };
+  const data = await r.json();
 
-    <!-- בלוק קהילה -->
-    <section class="mt-8 p-5 sm:p-6 rounded-3xl bg-white/70 glass shadow-lg">
-      <h2 class="text-2xl font-extrabold mb-2">הצטרפו לקהילה בטלגרם</h2>
-      <p class="text-gray-700">התייעצו, קבלו עדכונים, ושאלות על תשלומי TON לעסק שלכם גם. הצטרפו לקהילה העסקית החזקה בארץ.</p>
-      <a id="communityLinkBottom"
-         class="mt-4 inline-block px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow">
-        מעבר לקהילה
-      </a>
-    </section>
+  const minNano = BigInt(Math.round(Number(minAmountTon) * 1e9));
+  const since = sinceTs ? Number(sinceTs) : Date.now() - 15 * 60 * 1000;
 
-    <footer class="py-10 text-center text-gray-500">
-     🚀 פרויקט זה נבנה על רשת טלגרם המיוצגת על ידי מטבע סלה ללא גבולות שהונפק על ידי "תנועת אחדות - החופש שלנו" 🚀
-    </footer>
-  </main>
+  const hit = (data?.transactions || []).find(tx => {
+    // בדיקה גסה: התקבלו כספים מאת כתובת מסוימת לתוך seller, בסכום מתאים, מאז 'since'
+    const utime = (tx?.utime ?? 0) * 1000;
+    const inMsgs = (tx?.in_msgs || []).concat(tx?.in_msg ? [tx.in_msg] : []);
+    const anyFrom = inMsgs.some(m => !from || (m?.source === from));
+    const value = BigInt(tx?.in_msg?.value || 0n);
+    const toSeller = tx?.account_addr === seller || (tx?.in_msg?.destination === seller);
+    return toSeller && anyFrom && value >= minNano && utime >= since;
+  });
 
-  <!-- === קונפיג מה-API === -->
-  <script>
-    const API_BASE = 'https://ton-2eg2.onrender.com';
+  return { ok: true, found: !!hit };
+}
 
-    async function loadConfig() {
-      const res = await fetch(API_BASE + '/config', { cache: 'no-store' });
-      return res.json();
+// helper: Toncenter getTransactions (REST)  https://toncenter.com/api/v2/getTransactions
+async function verifyWithToncenter({ seller, from, minAmountTon, sinceTs }) {
+  const url = new URL('https://toncenter.com/api/v2/getTransactions');
+  url.searchParams.set('address', seller);
+  url.searchParams.set('limit', '50');
+  if (TONCENTER_KEY) url.searchParams.set('api_key', TONCENTER_KEY);
+  const r = await fetch(url.toString());
+  if (!r.ok) return { ok: false, status: r.status };
+  const data = await r.json();
+
+  const minNano = BigInt(Math.round(Number(minAmountTon) * 1e9));
+  const since = sinceTs ? Number(sinceTs) : Date.now() - 15 * 60 * 1000;
+
+  const txs = data?.result || [];
+  const hit = txs.find(tx => {
+    const utime = (tx?.utime ?? 0) * 1000;
+    const inMsg = tx?.in_msg || {};
+    const anyFrom = !from || (inMsg?.source === from);
+    const value = BigInt(inMsg?.value || 0n);
+    // חלק מהחזרים מחזירים in_msg.value כמחרוזת – נתמוך גם בזה:
+    const val = typeof inMsg?.value === 'string' ? BigInt(inMsg.value) : value;
+    return anyFrom && val >= minNano && utime >= since;
+  });
+
+  return { ok: true, found: !!hit };
+}
+
+// GET /verify-donation?amountTon=1&from=EQ...&since=unix_ms
+app.get('/verify-donation', async (req, res) => {
+  const seller = cfg.sellerTonAddress;
+  const from = req.query.from || '';
+  const amountTon = Number(req.query.amountTon || cfg.minDonationTon || 1);
+  const sinceTs = req.query.since ? Number(req.query.since) : undefined;
+
+  try {
+    if (!seller) return res.status(400).json({ ok: false, error: 'SELLER_TON_ADDRESS not set' });
+
+    if (TONAPI_KEY) {
+      const v = await verifyWithTonAPI({ seller, from, minAmountTon: amountTon, sinceTs });
+      if (v.supported === false) { /* fallthrough */ }
+      else return res.json({ ok: !!v.ok, verified: !!v.found, via: 'tonapi' });
     }
-    function toNano(ton){ return Math.round(Number(ton) * 1e9); }
-    function encodeQuery(q){ return Object.entries(q).map(([k,v]) => k + '=' + encodeURIComponent(String(v))).join('&'); }
-    function saveUnlocked(){ localStorage.setItem('unlocked','1'); }
-    function isUnlocked(){ return localStorage.getItem('unlocked')==='1'; }
-    function showUnlocked(){ document.getElementById('unlockedBox').classList.remove('hidden'); }
+    // fallback Toncenter
+    const v2 = await verifyWithToncenter({ seller, from, minAmountTon: amountTon, sinceTs });
+    return res.json({ ok: !!v2.ok, verified: !!v2.found, via: 'toncenter' });
+  } catch (e) {
+    console.error('[verify]', e);
+    res.status(500).json({ ok: false, error: 'verify_failed' });
+  }
+});
 
-    (async () => {
-      const cfg = await loadConfig();
-      window.__cfg = cfg;
-
-      const amountEl = document.getElementById('amount');
-      const unlockBtn= document.getElementById('unlockBtn');
-      const commTop  = document.getElementById('communityLinkTop');
-      const commBot  = document.getElementById('communityLinkBottom');
-
-      amountEl.value = cfg.minDonationTon ?? 1;
-
-      // קישורי קהילה/בוט
-      const botOrCommunity = (cfg.botLink || cfg.communityLink || '').trim();
-      if (commTop) commTop.href = cfg.communityLink || botOrCommunity;
-      if (commBot) commBot.href = cfg.communityLink || botOrCommunity;
-
-      // פתיחת הבונוס ידנית (MVP)
-      unlockBtn.onclick = () => { if (isUnlocked()) showUnlocked(); else alert('הבונוס נפתח אחרי תרומה (MVP).'); };
-      if (isUnlocked()) showUnlocked();
-    })().catch(e => { console.error(e); alert('שגיאה בטעינת קונפיג.'); });
-  </script>
-
-  <!-- === לוגיקה: שלם עכשיו (ארנק + פולבק קנייה), בוט טלגרם, פתיחת ארנק === -->
-  <script>
-    const payNowBtn     = document.getElementById('payNow');
-    const tgBtn         = document.getElementById('payWithTelegram');
-    const openWalletBtn = document.getElementById('openWallet');
-
-    // 1) "שלם עכשיו" — פותח ארנק; אם אין → קנייה ב-Telegram Wallet; חזרה → לוג + הטבה
-    payNowBtn.addEventListener('click', () => {
-      const cfg = window.__cfg || {};
-      const seller = cfg.sellerTonAddress || '';
-      if (!seller) { alert('SELLER_TON_ADDRESS חסר ב-API'); return; }
-
-      const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
-
-      const deeplink = `ton://transfer/${seller}?` + encodeQuery({
-        amount: toNano(amt),
-        text: 'Thanks for your work!'
-      });
-
-      let returned = false;
-      const onBack = () => {
-        if (returned) return;
-        returned = true;
-        fetch(API_BASE + '/log-donation', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ amountTon: amt, to: seller, comment: 'deeplink', source: 'payNow' })
-        }).catch(()=>{});
-        saveUnlocked(); showUnlocked();
-        document.removeEventListener('visibilitychange', visHandler);
-      };
-      const visHandler = () => { if (document.visibilityState === 'visible') onBack(); };
-      document.addEventListener('visibilitychange', visHandler);
-
-      // ניסיון לפתוח ארנק (ton://). אם לא נפתח → Telegram Wallet לקנייה בכרטיס
-      window.location.href = deeplink;
-      setTimeout(() => {
-        if (document.visibilityState === 'visible') {
-          window.open('https://t.me/wallet', '_blank', 'noopener');
-        }
-      }, 1200);
-    });
-
-    // 2) לבוט טלגרם שלנו — מעביר סכום ב-start=donate_<amount>
-    tgBtn.addEventListener('click', () => {
-      const cfg = window.__cfg || {};
-      const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
-      const base = (cfg.botLink || cfg.communityLink || '').trim();
-
-      if (!base) { alert('לא הוגדר קישור טלגרם (bot/community) ב-API'); return; }
-
-      const url = base.startsWith('https://t.me/')
-        ? `${base}${base.includes('?') ? '&' : '?'}start=donate_${encodeURIComponent(amt)}`
-        : base;
-
-      window.location.href = url;
-    });
-
-    // 3) מעבר לארנק טון — פתיחת דף Tonkeeper (כפי שהיה)
-    openWalletBtn.addEventListener('click', () => {
-      window.open('https://tonkeeper.com', '_blank', 'noopener');
-    });
-  </script>
-</body>
-</html>
+const port = Number(process.env.PORT || 4000);
+app.listen(port, () => {
+  console.log(`[api] listening on http://0.0.0.0:${port}`);
+});
