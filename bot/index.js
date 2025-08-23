@@ -15,6 +15,8 @@ const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
+// תמונת HERO לפתיחת /start
+const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
@@ -31,7 +33,7 @@ async function tg(method, payload) {
   return j;
 }
 
-// --- תפריט ראשי: כולל תמיכה, העתקה, וקיצורי ₪ ---
+// --- תפריט ראשי ---
 function mainMenuKeyboard() {
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
@@ -51,43 +53,36 @@ function mainMenuKeyboard() {
   return { inline_keyboard: rows };
 }
 
-// --- כפתורי תשלום (נשארו לשימוש זרימה של ₪/TON; לא נוגעים בהודעת /start) ---
-function paymentKeyboard(amtTon) {
-  const amount = Number(amtTon) || 1;
-  const nano = Math.round(amount * 1e9);
-  const text = encodeURIComponent('Thanks for your work!');
-  const tkHttps  = SELLER ? `https://app.tonkeeper.com/transfer/${SELLER}?amount=${nano}&text=${text}` : null;
-  const tonDeep  = SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${text}` : null;
-  const backSite = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
-
-  const rows = [];
-  if (tkHttps) rows.push([{ text: 'פתיחה ב-Tonkeeper', url: tkHttps }]);
-  if (tonDeep) rows.push([{ text: 'פתיחה ב-ארנק TON (deeplink)', url: tonDeep }]);
-  rows.push([{ text: 'פתיחה ב-Telegram Wallet', url: 'https://t.me/wallet' }]);
-  rows.push([{ text: 'חזרה לאתר', url: backSite }]);
-
-  return { inline_keyboard: rows };
+// --- כפתורי תשלום לאחר חישוב ---
+// *רק* Telegram Wallet + חזרה לתפריט (ללא Tonkeeper / ללא deeplink)
+function paymentKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: 'פתיחה ב-Telegram Wallet', url: 'https://t.me/wallet' }],
+      [{ text: '⬅️ חזרה לתפריט', callback_data: 'back_menu' }]
+    ]
+  };
 }
 
-// --- הודעת /start מאוחדת (ללא דיפ-לינק, ללא סכום מוצע) ---
-function startCombinedMessage() {
+// --- הודעת /start מאוחדת (ללא דיפ-לינק, ללא "סכום מוצע") ---
+function startCombinedCaption() {
   return [
     'ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.',
     '',
-    'כתובת ארנק לתשלום:',
-    SELLER || '—',
+    '*כתובת ארנק לתשלום:*',
+    '`' + (SELLER || '—') + '`',
     '',
     'להצעת סכום: לבחירתכם.',
     '',
-    'העתיקו את כתובת הארנק (כפתור "📋 כתובת להעתקה" למטה ישלח אותה שוב בשביל העתקה נוחה).',
-    'פתחו את הארנק ובצעו תשלום: https://t.me/wallet',
-    'או העתיקו: @wallet (כפתור "📋 ‏@wallet להעתקה" למטה).',
+    '• ניתן ללחוץ על "📋 כתובת להעתקה" כדי לקבל את הכתובת כהודעה נפרדת להעתקה קלה.',
+    '• פתחו את הארנק ובצעו תשלום: https://t.me/wallet',
+    '• או העתיקו: @wallet (כפתור "📋 ‏@wallet להעתקה").',
     '',
-    'חזרו לאתר לקבלת ההטבה — לאחר אישור התשלום ההטבה תישלח כאן בבוט באופן אוטומטי.',
+    '_חזרו לאתר לקבלת ההטבה — לאחר אישור התשלום ההטבה תישלח כאן בבוט._'
   ].join('\n');
 }
 
-// --- הודעת תרומה כשמחשב/ים TON (לזרימות ₪/payload) ---
+// --- הודעת תרומה לאחר חישוב ₪→TON ---
 function donationText(amtTon) {
   const amount = Number(amtTon) || 1;
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
@@ -183,6 +178,12 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
+      if (data === 'back_menu') {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id });
+        await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: mainMenuKeyboard() });
+        return;
+      }
+
       // קיצורי ₪
       const quick = data.match(/^pay_ils_(\d+)$/);
       if (quick) {
@@ -194,7 +195,7 @@ app.post('/webhook', async (req, res) => {
             chat_id,
             text: donationText(ton),
             disable_web_page_preview: true,
-            reply_markup: paymentKeyboard(ton)
+            reply_markup: paymentKeyboard()
           });
         } catch (e) {
           console.error('[price quick]', e?.message || e);
@@ -208,7 +209,7 @@ app.post('/webhook', async (req, res) => {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'הקלד/י סכום בש״ח…', show_alert: false });
         await tg('sendMessage', {
           chat_id,
-          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר קישור תשלום 👇',
+          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר קישור/הוראות 👇',
           reply_markup: mainMenuKeyboard()
         });
         return;
@@ -224,14 +225,25 @@ app.post('/webhook', async (req, res) => {
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
-    // /start — הודעה אחת מאוחדת (מתעלמים מ-payload כרגע לפי בקשתך)
+    // /start — הודעה אחת עם תמונה + כיתוב
     if (text.startsWith('/start')) {
-      await tg('sendMessage', {
-        chat_id,
-        text: startCombinedMessage(),
-        reply_markup: mainMenuKeyboard(),
-        disable_web_page_preview: true
-      });
+      if (HERO_IMAGE_URL) {
+        await tg('sendPhoto', {
+          chat_id,
+          photo: HERO_IMAGE_URL,
+          caption: startCombinedCaption(),
+          parse_mode: 'Markdown',
+          reply_markup: mainMenuKeyboard()
+        });
+      } else {
+        await tg('sendMessage', {
+          chat_id,
+          text: startCombinedCaption(),
+          parse_mode: 'Markdown',
+          reply_markup: mainMenuKeyboard(),
+          disable_web_page_preview: true
+        });
+      }
       return;
     }
 
@@ -241,7 +253,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // אם ההודעה נראית כמו ₪ — מחשבים והודעת תשלום עם כפתורים
+    // הודעה שנראית כמו ₪ → חישוב + הוראות + כפתורים (טלגרם בלבד)
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
@@ -251,7 +263,7 @@ app.post('/webhook', async (req, res) => {
           chat_id,
           text: donationText(ton),
           disable_web_page_preview: true,
-          reply_markup: paymentKeyboard(ton)
+          reply_markup: paymentKeyboard()
         });
       } catch (e) {
         console.error('[price ils freeform]', e?.message || e);
@@ -260,7 +272,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים), אחרת קידום לפלטפורמה
+    // טקסט חופשי → AI (אם קיים) אחרת קידום
     if (text) {
       let answer = null;
       if (OPENAI_API_KEY) {
