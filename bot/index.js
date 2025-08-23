@@ -99,7 +99,7 @@ async function buildMainMenu() {
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
     [{ text: 'לקבוצה שלנו', url: COMMUNITY }],
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
-    [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
+    [{ text: 'תמיכה', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
     [{ text: '📋 כתובת שליחה', callback_data: 'copy_addr' }],
     [{ text: '📋 ‏חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
