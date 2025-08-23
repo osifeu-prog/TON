@@ -1,55 +1,51 @@
+// bot/index.js
 import express from 'express';
 import dotenv from 'dotenv';
-import { Telegraf } from 'telegraf';
 
 dotenv.config();
-
 const app = express();
 app.use(express.json());
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const PUBLIC_URL = (process.env.BOT_PUBLIC_URL || '').replace(/\/+$/,''); // בלי / בסוף
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://tonfront.onrender.com';
+const TOKEN   = process.env.TELEGRAM_BOT_TOKEN || '';
+const SELLER  = process.env.SELLER_TON_ADDRESS || '';
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://tonfront.onrender.com').replace(/\/+$/,'');
+const COMMUNITY = process.env.TELEGRAM_COMMUNITY_LINK || '';
+const BOT_LINK  = process.env.TELEGRAM_BOT_LINK || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
-if (!BOT_TOKEN) {
-  console.error('TELEGRAM_BOT_TOKEN missing');
-  process.exit(1);
+if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
+if (!OPENAI_API_KEY) console.warn('[bot] OPENAI_API_KEY missing (AI replies disabled)');
+
+const API = `https://api.telegram.org/bot${TOKEN}`;
+
+async function tg(method, payload) {
+  const r = await fetch(`${API}/${method}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  return r.json().catch(()=> ({}));
 }
 
-const bot = new Telegraf(BOT_TOKEN, { handlerTimeout: 9_000 });
-
-bot.start(async (ctx) => {
-  const p = ctx.startPayload || '';
-  if (p.startsWith('donate_')) {
-    const amt = p.slice('donate_'.length);
-    await ctx.reply(`מעולה! סכום מוצע: ${amt} TON.
-1) פתחו את הארנק ובצעו תשלום.
-2) חזרו לאתר לקבלת ההטבה: ${FRONTEND_URL}`);
-  } else if (p === 'help') {
-    await ctx.reply(`שאלות? אנחנו כאן. אפשר לחזור לאתר: ${FRONTEND_URL}`);
-  } else {
-    await ctx.reply('ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.');
-  }
-});
-
-// health
-app.get('/health', (_req,res) => res.json({ ok:true, service:'bot', time:new Date().toISOString() }));
-
-// webhook
-const path = '/webhook';
-app.use(bot.webhookCallback(path));
-
-// set webhook on startup (idempotent)
-async function setup() {
-  if (!PUBLIC_URL) {
-    console.error('BOT_PUBLIC_URL missing (e.g. https://tonbot-xxxx.onrender.com)');
-    process.exit(1);
-  }
-  const hook = `${PUBLIC_URL}${path}`;
-  await bot.telegram.setWebhook(hook);
-  console.log('[bot] webhook set to', hook);
+function donationText(amt) {
+  const nano = Math.round((Number(amt) || 1) * 1e9);
+  const tonDeep = SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${encodeURIComponent('Thanks for your work!')}` : null;
+  const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(Number(amt)||1)}`;
+  let lines = [
+    `סכום מוצע: ${amt} TON`,
+    `אתר: ${siteUrl}`,
+    `Telegram Wallet: https://t.me/wallet`
+  ];
+  if (tonDeep) lines.unshift(`ארנק TON (deeplink): ${tonDeep}`);
+  return lines.join('\n');
 }
-setup().catch(e => { console.error(e); process.exit(1); });
 
-const port = Number(process.env.PORT || 8080);
-app.listen(port, () => console.log(`[bot] listening on :${port}`));
+async function aiAnswer(userText) {
+  if (!OPENAI_API_KEY) return null;
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+  const system = [
+    'אתה עוזר חכם עבור קהילת TON.',
+    'הנחיה: לכוון משתמשים לתרומה/תשלום דרך האתר או הארנק—לא לבקש פרטים אישיים.',
+    `קישור אתר: ${FRONTEND_URL}.
