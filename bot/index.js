@@ -52,6 +52,10 @@ function formatILS(n) {
                        : { minimumFractionDigits: 0, maximumFractionDigits: 2 };
   return '₪' + n.toLocaleString('he-IL', opts);
 }
+function formatTON(x) {
+  const v = Math.max(0.001, Number(x) || 0);
+  return v.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
 
 // --- זיהוי “₪” גם בלי state ---
 function parseIlsLike(text) {
@@ -61,15 +65,34 @@ function parseIlsLike(text) {
   return isFinite(v) && v > 0 ? v : null;
 }
 
-// --- בנאי תפריט דינמי (מכניס 0.001 TON עם ₪) ---
+// --- בנאי תפריט דינמי: כל הכפתורים עם ערכים חיים ---
 async function buildMainMenu() {
+  // ברירות מחדל:
   let minBtnLabel = 'תרומה מזערית 0.001 TON';
+  let btn50 = '₪50';
+  let btn100 = '₪100';
+  let btn200 = '₪200';
+  let payAny = 'תשלום מיידי (₪)';
+
   try {
-    const ils = await fetchTonPriceILS();
-    const approx = 0.001 * ils;
-    minBtnLabel += ` (~${formatILS(approx)})`;
+    const rate = await fetchTonPriceILS(); // ₪ לכל 1 TON
+    // 0.001 TON -> ₪
+    const ilsForMin = 0.001 * rate;
+    minBtnLabel += ` (~${formatILS(ilsForMin)})`;
+
+    // ₪ -> TON
+    const ton50  = 50  / rate;
+    const ton100 = 100 / rate;
+    const ton200 = 200 / rate;
+
+    btn50  = `₪50 (~${formatTON(ton50)} TON)`;
+    btn100 = `₪100 (~${formatTON(ton100)} TON)`;
+    btn200 = `₪200 (~${formatTON(ton200)} TON)`;
+
+    // להראות גם את השער על הכפתור של "תשלום מיידי"
+    payAny = `תשלום מיידי (₪) • שער ${formatILS(rate)}/TON`;
   } catch {
-    // אם נכשל — נשאיר בלי ₪
+    // תוויות fallback יישארו כפי שהוגדרו בתחילת הפונקציה
   }
 
   const rows = [
@@ -82,16 +105,16 @@ async function buildMainMenu() {
   ];
   if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
 
-  // הכפתור החדש של 0.001 TON
+  // חדש: 0.001 TON עם ₪
   rows.push([{ text: minBtnLabel, callback_data: 'pay_min_ton' }]);
 
-  // קיצורי ₪ קיימים
+  // ₪ דינמי עם TON משוער
   rows.push([
-    { text: '₪50',  callback_data: 'pay_ils_50' },
-    { text: '₪100', callback_data: 'pay_ils_100' },
-    { text: '₪200', callback_data: 'pay_ils_200' }
+    { text: btn50,  callback_data: 'pay_ils_50' },
+    { text: btn100, callback_data: 'pay_ils_100' },
+    { text: btn200, callback_data: 'pay_ils_200' }
   ]);
-  rows.push([{ text: 'תשלום מיידי (₪)', callback_data: 'pay_ils' }]);
+  rows.push([{ text: payAny, callback_data: 'pay_ils' }]);
 
   return { inline_keyboard: rows };
 }
@@ -194,7 +217,7 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
-      // כפתור חדש: 0.001 TON
+      // 0.001 TON
       if (data === 'pay_min_ton') {
         const tonAmt = 0.001;
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
@@ -212,8 +235,8 @@ app.post('/webhook', async (req, res) => {
       if (quick) {
         const ils = Number(quick[1]);
         try {
-          const priceIls = await fetchTonPriceILS();
-          const ton = Math.max(0.001, +(ils / priceIls).toFixed(3));
+          const rate = await fetchTonPriceILS();
+          const ton = Math.max(0.001, +(ils / rate).toFixed(3));
           await tg('sendMessage', {
             chat_id,
             text: donationText(ton),
@@ -285,8 +308,8 @@ app.post('/webhook', async (req, res) => {
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
-        const priceIls = await fetchTonPriceILS();
-        const ton = Math.max(0.001, +(ilsMaybe / priceIls).toFixed(3));
+        const rate = await fetchTonPriceILS();
+        const ton = Math.max(0.001, +(ilsMaybe / rate).toFixed(3));
         await tg('sendMessage', {
           chat_id,
           text: donationText(ton),
