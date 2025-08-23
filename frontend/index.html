@@ -13,7 +13,7 @@
     .glass{backdrop-filter:blur(12px)}
   </style>
 
-  <!-- SEO/OG (אופציונלי) -->
+  <!-- (אופציונלי) SEO/OG -->
   <meta name="description" content="תרומות TON מהירות, קהילה עסקית בטלגרם והטבות לחברים.">
   <meta property="og:title" content="TON Tip Store">
   <meta property="og:description" content="תרומת TON מהירה וידידותית. הצטרפו לקהילה וקבלו הטבות.">
@@ -29,9 +29,8 @@
       buttonRootId: 'ton-connect',
       uiPreferences: { theme: 'SYSTEM' },
       actionsConfiguration: {
-        // אמין יותר למובייל: חזרה לאפליקציה הקודמת
-        returnStrategy: 'back',                        /* ע"פ ReturnStrategy */ 
-        twaReturnUrl: 'https://t.me/hbdcommunity_bot'  /* לחזרה כשזה TWA */
+        returnStrategy: 'back',                        // חזרה יציבה מהארנק
+        twaReturnUrl: 'https://t.me/hbdcommunity_bot' // חזרה כשזה TWA
       }
     });
   </script>
@@ -62,7 +61,7 @@
           האם ידעתם? כל עוד אתם משתמשים בארנק טלגרם הכספים שלכם המצויים בו מוגדרים כהשקעה לכל דבר, על כן *לא* מחוייבים במס בפועל!!
         </p>
 
-        <!-- בלוק טקסט -->
+        <!-- בלוק טקסט  -->
         <section class="mt-5 p-4 rounded-2xl bg-gray-50 text-gray-800">
           <h3 class="font-bold mb-2">התוכן שלכם/הכסף שלכם/החופש שלכם</h3>
           <p>
@@ -107,7 +106,7 @@
           ✅ תודה על תרומתכם! התוכן נחשף: <a href="#" class="underline">הורדת קובץ/קישור בונוס</a>
         </div>
 
-        <!-- הכפתורים למטה (כמו שביקשת) -->
+        <!-- הכפתורים למטה -->
         <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button id="payWithTelegram"
                   class="w-full sm:w-auto px-4 py-2 rounded-xl border hover:bg-gray-50 transition">
@@ -115,7 +114,7 @@
           </button>
           <button id="openWallet"
                   class="w-full sm:w-auto px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 transition">
-            לאתר שלנו
+            מעבר לאתר שלי
           </button>
         </div>
 
@@ -124,7 +123,7 @@
                   class="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
             כבר תרמתי — פתח בונוס
           </button>
-          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן" או לחץ "מעבר לארנק טון".</div>
+          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן" או לחץ "מעבר לאתר שלי".</div>
         </div>
       </section>
     </div>
@@ -144,7 +143,7 @@
     </footer>
   </main>
 
-  <!-- === קונפיג מה-API (ריטריי חזק + תיקון Content-Type) === -->
+  <!-- === קונפיג מה-API (ריטריי/חימום/גמישות Content-Type) === -->
   <script>
     const API_BASE = 'https://ton-2eg2.onrender.com';
 
@@ -160,9 +159,7 @@
       const ct = (res.headers.get('content-type')||'').toLowerCase();
       const text = await res.text();
       if (ct.includes('application/json')) return JSON.parse(text);
-      // נסה לפענח גם אם השרת לא שלח content-type נכון
-      try { return JSON.parse(text); } 
-      catch { throw new Error('Not JSON ('+ct+')'); }
+      try { return JSON.parse(text); } catch { throw new Error('Not JSON ('+ct+')'); }
     }
 
     async function loadConfigWithRetry(tries=8) {
@@ -199,7 +196,6 @@
 
       const tc = window.__tonConnectUI;
 
-      // הרשמה = התחברות ארנק
       function setRegisteredUI(isOn, address='') {
         const payBtn = document.getElementById('payNow');
         if (isOn) {
@@ -254,7 +250,7 @@
     });
   </script>
 
-  <!-- === תשלום (TonConnect אמיתי → openModal → פולבק deeplink/Telegram Wallet), טלגרם, פתיחת ארנק === -->
+  <!-- === תשלום (TonConnect אמיתי → openModal → פולבק), טלגרם, מעבר לאתר (מה-API) === -->
   <script type="module">
     const payNowBtn     = document.getElementById('payNow');
     const tgBtn         = document.getElementById('payWithTelegram');
@@ -269,19 +265,16 @@
       const nano = String(Math.round(amt * 1e9));
       const tc = window.__tonConnectUI;
 
-      // אם לא מחובר — פתח חלון חיבור
       if (!tc?.connected) {
         try { await tc.openModal?.(); } catch {}
       }
       if (tc?.connected) {
         try {
-          // שליחת טרנזקציה אמיתית דרך TonConnect (amount בנאנו־טון)
           const tx = {
             validUntil: Math.floor(Date.now() / 1000) + 600,
             messages: [{ address: seller, amount: nano }]
           };
-          const result = await tc.sendTransaction(tx); /* שליחה דרך SDK */
-          // לוג + פתיחת הבונוס (MVP)
+          const result = await tc.sendTransaction(tx);
           fetch(API_BASE + '/log-donation', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
@@ -295,7 +288,7 @@
         }
       }
 
-      // פולבק: נסה deeplink ton://transfer (amount בננו-טון), ואם לא — Telegram Wallet (קנייה בכרטיס)
+      // פולבק: deeplink → ואם לא – Telegram Wallet
       const deeplink = `ton://transfer/${seller}?` + new URLSearchParams({ amount: nano, text: 'Thanks for your work!' }).toString();
       let returned = false;
       const onBack = () => {
@@ -313,7 +306,7 @@
       const visHandler = () => { if (document.visibilityState === 'visible') onBack(); };
       document.addEventListener('visibilitychange', visHandler);
 
-      window.location.href = deeplink; /* amount=nanocoins ע"פ Tonkeeper deep link */
+      window.location.href = deeplink;
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
           window.open('https://t.me/wallet', '_blank', 'noopener');
@@ -321,7 +314,7 @@
       }, 1200);
     });
 
-    // טלגרם – מוסיף start=donate_<amount> רק אם זה בוט (…/_bot)
+    // טלגרם – start=donate_<amount> רק אם זה בוט (.../_bot)
     tgBtn.addEventListener('click', () => {
       const cfg = window.__cfg || {};
       const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
@@ -336,11 +329,11 @@
       window.location.href = base;
     });
 
-    // מעבר לארנק טון – Tonkeeper (רק פתיחה/הורדה)
+    // "מעבר לאתר שלי" – נשלט מה-API (walletRedirectUrl) עם fallback אם חסר
     openWalletBtn.addEventListener('click', () => {
-  window.open('https://your-domain.example', '_blank', 'noopener');
-});
-('https://slhisrael.com/', '_blank', 'noopener');
+      const cfg = window.__cfg || {};
+      const url = (cfg.walletRedirectUrl || 'https://tonkeeper.com').trim();
+      window.location.href = url; // או: window.open(url, '_blank', 'noopener')
     });
   </script>
 </body>
