@@ -13,6 +13,14 @@
     .glass{backdrop-filter:blur(12px)}
   </style>
 
+  <!-- (אופציונלי) SEO/OG -->
+  <meta name="description" content="תרומות TON מהירות, קהילה עסקית בטלגרם והטבות לחברים.">
+  <meta property="og:title" content="TON Tip Store">
+  <meta property="og:description" content="תרומת TON מהירה וידידותית. הצטרפו לקהילה וקבלו הטבות.">
+  <meta property="og:image" content="https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg">
+  <meta property="og:url" content="https://tonfront.onrender.com/">
+  <meta name="twitter:card" content="summary_large_image">
+
   <!-- TON Connect UI (רק להתחברות + חזרה לאתר/בוט) -->
   <script type="module">
     import { TonConnectUI } from 'https://esm.run/@tonconnect/ui@2.2.0';
@@ -155,12 +163,10 @@
 
       amountEl.value = cfg.minDonationTon ?? 1;
 
-      // קישורי קהילה/בוט
       const botOrCommunity = (cfg.botLink || cfg.communityLink || '').trim();
       if (commTop) commTop.href = cfg.communityLink || botOrCommunity;
       if (commBot) commBot.href = cfg.communityLink || botOrCommunity;
 
-      // פתיחת הבונוס ידנית (MVP)
       unlockBtn.onclick = () => { if (isUnlocked()) showUnlocked(); else alert('הבונוס נפתח אחרי תרומה (MVP).'); };
       if (isUnlocked()) showUnlocked();
     })().catch(e => { console.error(e); alert('שגיאה בטעינת קונפיג.'); });
@@ -200,7 +206,6 @@
       const visHandler = () => { if (document.visibilityState === 'visible') onBack(); };
       document.addEventListener('visibilitychange', visHandler);
 
-      // ניסיון לפתוח ארנק (ton://). אם לא נפתח → Telegram Wallet לקנייה בכרטיס
       window.location.href = deeplink;
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
