@@ -15,7 +15,6 @@ const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
-// תמונת HERO לפתיחת /start
 const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
@@ -33,28 +32,71 @@ async function tg(method, payload) {
   return j;
 }
 
-// --- תפריט ראשי ---
-function mainMenuKeyboard() {
+// --- עזרי מחיר ---
+let priceCache = { ils: 0, ts: 0 };
+async function fetchTonPriceILS() {
+  const now = Date.now();
+  if (now - priceCache.ts < 60_000 && priceCache.ils > 0) return priceCache.ils;
+  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=ils';
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('price_http_' + r.status);
+  const j = await r.json();
+  const ils = Number(j?.['the-open-network']?.ils);
+  if (!isFinite(ils) || ils <= 0) throw new Error('price_bad');
+  priceCache = { ils, ts: now };
+  return ils;
+}
+function formatILS(n) {
+  if (!isFinite(n)) return '₪?';
+  const opts = (n < 1) ? { minimumFractionDigits: 2, maximumFractionDigits: 3 }
+                       : { minimumFractionDigits: 0, maximumFractionDigits: 2 };
+  return '₪' + n.toLocaleString('he-IL', opts);
+}
+
+// --- זיהוי “₪” גם בלי state ---
+function parseIlsLike(text) {
+  if (!text) return null;
+  const cleaned = text.replace(/[^\d.,]/g, '').replace(',', '.');
+  const v = Number(cleaned);
+  return isFinite(v) && v > 0 ? v : null;
+}
+
+// --- בנאי תפריט דינמי (מכניס 0.001 TON עם ₪) ---
+async function buildMainMenu() {
+  let minBtnLabel = 'תרומה מזערית 0.001 TON';
+  try {
+    const ils = await fetchTonPriceILS();
+    const approx = 0.001 * ils;
+    minBtnLabel += ` (~${formatILS(approx)})`;
+  } catch {
+    // אם נכשל — נשאיר בלי ₪
+  }
+
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
     [{ text: 'לקבוצה שלנו', url: COMMUNITY }],
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
     [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
-    [{ text: '📋 כתובת להעתקה', callback_data: 'copy_addr' }],
-    [{ text: '📋 ‏@wallet להעתקה', callback_data: 'copy_wallet' }],
+    [{ text: '📋 כתובת שליחה', callback_data: 'copy_addr' }],
+    [{ text: '📋 ‏חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
   if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
+
+  // הכפתור החדש של 0.001 TON
+  rows.push([{ text: minBtnLabel, callback_data: 'pay_min_ton' }]);
+
+  // קיצורי ₪ קיימים
   rows.push([
     { text: '₪50',  callback_data: 'pay_ils_50' },
     { text: '₪100', callback_data: 'pay_ils_100' },
     { text: '₪200', callback_data: 'pay_ils_200' }
   ]);
   rows.push([{ text: 'תשלום מיידי (₪)', callback_data: 'pay_ils' }]);
+
   return { inline_keyboard: rows };
 }
 
-// --- כפתורי תשלום לאחר חישוב ---
-// *רק* Telegram Wallet + חזרה לתפריט (ללא Tonkeeper / ללא deeplink)
+// --- כפתורי תשלום לאחר חישוב — רק Telegram Wallet + חזרה לתפריט ---
 function paymentKeyboard() {
   return {
     inline_keyboard: [
@@ -64,25 +106,16 @@ function paymentKeyboard() {
   };
 }
 
-// --- הודעת /start מאוחדת (ללא דיפ-לינק, ללא "סכום מוצע") ---
+// --- /start: הודעה אחת עם תמונה + טקסט שלך ---
 function startCombinedCaption() {
   return [
     'ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.',
     '',
-    '*כתובת ארנק לתשלום:*',
-    '`' + (SELLER || '—') + '`',
-    '',
-    'להצעת סכום: לבחירתכם.',
-    '',
-    '• ניתן ללחוץ על "📋 כתובת להעתקה" כדי לקבל את הכתובת כהודעה נפרדת להעתקה קלה.',
-    '• פתחו את הארנק ובצעו תשלום: https://t.me/wallet',
-    '• או העתיקו: @wallet (כפתור "📋 ‏@wallet להעתקה").',
-    '',
-    '_חזרו לאתר לקבלת ההטבה — לאחר אישור התשלום ההטבה תישלח כאן בבוט._'
+    'לאחר אישור התשלום ההטבה תישלח כאן בבוט.'
   ].join('\n');
 }
 
-// --- הודעת תרומה לאחר חישוב ₪→TON ---
+// --- הודעת תרומה אחרי חישוב ₪→TON ---
 function donationText(amtTon) {
   const amount = Number(amtTon) || 1;
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
@@ -119,29 +152,6 @@ async function aiAnswer(userText) {
   return content || null;
 }
 
-// --- המרת ₪ → TON (CoinGecko) + קאש 60ש ---
-let priceCache = { ils: 0, ts: 0 };
-async function fetchTonPriceILS() {
-  const now = Date.now();
-  if (now - priceCache.ts < 60_000 && priceCache.ils > 0) return priceCache.ils;
-  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=ils';
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('price_http_' + r.status);
-  const j = await r.json();
-  const ils = Number(j?.['the-open-network']?.ils);
-  if (!isFinite(ils) || ils <= 0) throw new Error('price_bad');
-  priceCache = { ils, ts: now };
-  return ils;
-}
-
-// --- זיהוי “₪” גם בלי state ---
-function parseIlsLike(text) {
-  if (!text) return null;
-  const cleaned = text.replace(/[^\d.,]/g, '').replace(',', '.');
-  const v = Number(cleaned);
-  return isFinite(v) && v > 0 ? v : null;
-}
-
 // === בריאות ===
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'bot', time: new Date().toISOString() });
@@ -162,25 +172,38 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'staking_soon') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בקרוב! צוות הפיתוח עובד על זה 🚧', show_alert: false });
-        await tg('sendMessage', { chat_id, text: 'סטייקינג — בקרוב 🔜\nנעדכן בקבוצה כשהפיצ׳ר יוכרז.', reply_markup: mainMenuKeyboard() });
+        await tg('sendMessage', { chat_id, text: 'סטייקינג — בקרוב 🔜\nנעדכן בקבוצה כשהפיצ׳ר יוכרז.', reply_markup: await buildMainMenu() });
         return;
       }
 
       if (data === 'copy_addr') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'שלחתי את הכתובת להעתקה', show_alert: false });
-        await tg('sendMessage', { chat_id, text: SELLER || '—', reply_markup: mainMenuKeyboard() });
+        await tg('sendMessage', { chat_id, text: SELLER || '—', reply_markup: await buildMainMenu() });
         return;
       }
 
       if (data === 'copy_wallet') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'שלחתי @wallet להעתקה', show_alert: false });
-        await tg('sendMessage', { chat_id, text: '@wallet', reply_markup: mainMenuKeyboard() });
+        await tg('sendMessage', { chat_id, text: '@wallet', reply_markup: await buildMainMenu() });
         return;
       }
 
       if (data === 'back_menu') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
-        await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: mainMenuKeyboard() });
+        await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: await buildMainMenu() });
+        return;
+      }
+
+      // כפתור חדש: 0.001 TON
+      if (data === 'pay_min_ton') {
+        const tonAmt = 0.001;
+        await tg('answerCallbackQuery', { callback_query_id: cq.id });
+        await tg('sendMessage', {
+          chat_id,
+          text: donationText(tonAmt),
+          disable_web_page_preview: true,
+          reply_markup: paymentKeyboard()
+        });
         return;
       }
 
@@ -199,7 +222,11 @@ app.post('/webhook', async (req, res) => {
           });
         } catch (e) {
           console.error('[price quick]', e?.message || e);
-          await tg('sendMessage', { chat_id, text: 'לא הצלחתי להביא שער כעת. הקלד/י סכום ב-TON (למשל: 1).', reply_markup: mainMenuKeyboard() });
+          await tg('sendMessage', {
+            chat_id,
+            text: 'לא הצלחתי להביא שער כעת. הקלד/י סכום ב-TON (למשל: 1).',
+            reply_markup: await buildMainMenu()
+          });
         }
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
         return;
@@ -209,8 +236,8 @@ app.post('/webhook', async (req, res) => {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'הקלד/י סכום בש״ח…', show_alert: false });
         await tg('sendMessage', {
           chat_id,
-          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר קישור/הוראות 👇',
-          reply_markup: mainMenuKeyboard()
+          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר הוראות 👇',
+          reply_markup: await buildMainMenu()
         });
         return;
       }
@@ -225,22 +252,23 @@ app.post('/webhook', async (req, res) => {
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
-    // /start — הודעה אחת עם תמונה + כיתוב
+    // /start — עם תמונה + תפריט דינמי
     if (text.startsWith('/start')) {
+      const kb = await buildMainMenu();
       if (HERO_IMAGE_URL) {
         await tg('sendPhoto', {
           chat_id,
           photo: HERO_IMAGE_URL,
           caption: startCombinedCaption(),
           parse_mode: 'Markdown',
-          reply_markup: mainMenuKeyboard()
+          reply_markup: kb
         });
       } else {
         await tg('sendMessage', {
           chat_id,
           text: startCombinedCaption(),
           parse_mode: 'Markdown',
-          reply_markup: mainMenuKeyboard(),
+          reply_markup: kb,
           disable_web_page_preview: true
         });
       }
@@ -249,11 +277,11 @@ app.post('/webhook', async (req, res) => {
 
     // /menu
     if (text === '/menu') {
-      await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: mainMenuKeyboard() });
+      await tg('sendMessage', { chat_id, text: 'תפריט:', reply_markup: await buildMainMenu() });
       return;
     }
 
-    // הודעה שנראית כמו ₪ → חישוב + הוראות + כפתורים (טלגרם בלבד)
+    // הודעה שנראית כמו ₪ → חישוב + הוראות + כפתורי תשלום (טלגרם בלבד)
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
@@ -267,7 +295,11 @@ app.post('/webhook', async (req, res) => {
         });
       } catch (e) {
         console.error('[price ils freeform]', e?.message || e);
-        await tg('sendMessage', { chat_id, text: 'לא הצלחתי להביא שער כעת. הקלד/י את הסכום ב-TON (למשל: 1).', reply_markup: mainMenuKeyboard() });
+        await tg('sendMessage', {
+          chat_id,
+          text: 'לא הצלחתי להביא שער כעת. הקלד/י את הסכום ב-TON (למשל: 1).',
+          reply_markup: await buildMainMenu()
+        });
       }
       return;
     }
@@ -281,7 +313,7 @@ app.post('/webhook', async (req, res) => {
       await tg('sendMessage', {
         chat_id,
         text: answer || `לתרומה/תשלום: ${FRONTEND_URL}`,
-        reply_markup: mainMenuKeyboard()
+        reply_markup: await buildMainMenu()
       });
     }
   } catch (e) {
