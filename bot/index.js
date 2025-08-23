@@ -16,6 +16,12 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
 const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
+// אופציונלי: להעביר צילום אישור למפעיל
+const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || '';
+
+// === STATE זיכרון קליל ===
+const lastAmountByChat = new Map();   // chat_id -> amount TON
+const awaitingProof = new Map();      // chat_id -> true/false
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
@@ -67,7 +73,6 @@ function parseIlsLike(text) {
 
 // --- בנאי תפריט דינמי: כל הכפתורים עם ערכים חיים ---
 async function buildMainMenu() {
-  // ברירות מחדל:
   let minBtnLabel = 'תרומה מזערית 0.001 TON';
   let btn50 = '₪50';
   let btn100 = '₪100';
@@ -76,11 +81,9 @@ async function buildMainMenu() {
 
   try {
     const rate = await fetchTonPriceILS(); // ₪ לכל 1 TON
-    // 0.001 TON -> ₪
     const ilsForMin = 0.001 * rate;
     minBtnLabel += ` (~${formatILS(ilsForMin)})`;
 
-    // ₪ -> TON
     const ton50  = 50  / rate;
     const ton100 = 100 / rate;
     const ton200 = 200 / rate;
@@ -89,26 +92,23 @@ async function buildMainMenu() {
     btn100 = `₪100 (~${formatTON(ton100)} TON)`;
     btn200 = `₪200 (~${formatTON(ton200)} TON)`;
 
-    // להראות גם את השער על הכפתור של "תשלום מיידי"
     payAny = `תשלום מיידי (₪) • שער ${formatILS(rate)}/TON`;
   } catch {
-    // תוויות fallback יישארו כפי שהוגדרו בתחילת הפונקציה
+    // fallback — תוויות בסיסיות
   }
 
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
     [{ text: 'לקבוצה שלנו', url: COMMUNITY }],
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
-    [{ text: 'תמיכה', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
+    [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
     [{ text: '📋 כתובת שליחה', callback_data: 'copy_addr' }],
     [{ text: '📋 ‏חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
   if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
 
-  // חדש: 0.001 TON עם ₪
   rows.push([{ text: minBtnLabel, callback_data: 'pay_min_ton' }]);
 
-  // ₪ דינמי עם TON משוער
   rows.push([
     { text: btn50,  callback_data: 'pay_ils_50' },
     { text: btn100, callback_data: 'pay_ils_100' },
@@ -119,11 +119,13 @@ async function buildMainMenu() {
   return { inline_keyboard: rows };
 }
 
-// --- כפתורי תשלום לאחר חישוב — רק Telegram Wallet + חזרה לתפריט ---
+// --- כפתורי תשלום לאחר חישוב — Telegram Wallet בלבד + כלים ---
 function paymentKeyboard() {
   return {
     inline_keyboard: [
       [{ text: 'פתיחה ב-Telegram Wallet', url: 'https://t.me/wallet' }],
+      [{ text: '📋 כתובת להעתקה', callback_data: 'copy_addr' }],
+      [{ text: '⬆️ העלאת אישור תשלום', callback_data: 'upload_proof' }],
       [{ text: '⬅️ חזרה לתפריט', callback_data: 'back_menu' }]
     ]
   };
@@ -138,14 +140,20 @@ function startCombinedCaption() {
   ].join('\n');
 }
 
-// --- הודעת תרומה אחרי חישוב ₪→TON ---
+// --- הודעת תרומה אחרי חישוב ₪→TON: לפי הדרישה החדשה ---
 function donationText(amtTon) {
-  const amount = Number(amtTon) || 1;
+  const amount = Math.max(0.001, Number(amtTon) || 0.001);
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
   return [
-    `סכום חישוב לדוגמה: ~${amount} TON.`,
-    '1) פתחו את הארנק ובצעו תשלום.',
-    `2) חזרו לאתר לקבלת ההטבה: ${siteUrl}`
+    `סכום התרומה: ${amount} TON.`,
+    '',
+    'כעת האפליקציה תעביר אתכם לארנק שלכם כדי לבצע תשלום ישירות לכתובת:',
+    SELLER || '—',
+    '',
+    'לאחר התשלום תתבקשו להזין תמונה של אישור תשלום מהארנק שלכם.',
+    'את צילום המסך העלו לכאן להמשך.',
+    '',
+    `בסיום — חזרו לאתר לקבלת ההטבה: ${siteUrl}`
   ].join('\n');
 }
 
@@ -217,9 +225,22 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
+      if (data === 'upload_proof') {
+        awaitingProof.set(chat_id, true);
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'העלו צילום מסך כהודעת תמונה', show_alert: false });
+        await tg('sendMessage', {
+          chat_id,
+          text: 'נא לשלוח צילום מסך של אישור התשלום כהודעת *תמונה* (לא קובץ).',
+          parse_mode: 'Markdown'
+        });
+        return;
+      }
+
       // 0.001 TON
       if (data === 'pay_min_ton') {
         const tonAmt = 0.001;
+        lastAmountByChat.set(chat_id, tonAmt);
+        awaitingProof.set(chat_id, false);
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
         await tg('sendMessage', {
           chat_id,
@@ -237,6 +258,8 @@ app.post('/webhook', async (req, res) => {
         try {
           const rate = await fetchTonPriceILS();
           const ton = Math.max(0.001, +(ils / rate).toFixed(3));
+          lastAmountByChat.set(chat_id, ton);
+          awaitingProof.set(chat_id, false);
           await tg('sendMessage', {
             chat_id,
             text: donationText(ton),
@@ -304,12 +327,39 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
+    // אם מצפים לתמונה — קבל/י צילום מסך
+    if (awaitingProof.get(chat_id) && msg.photo && msg.photo.length) {
+      const file_id = msg.photo[msg.photo.length - 1].file_id; // הכי איכותית
+      const amount = lastAmountByChat.get(chat_id) || null;
+
+      // לוג/הודעת תודה
+      console.log('[proof]', { chat_id, amount, file_id });
+      await tg('sendMessage', {
+        chat_id,
+        text: 'תודה! קיבלנו את צילום האישור. נבצע בדיקה ונשלח את ההטבה לאחר אימות ✅'
+      });
+
+      // אופציונלי: העברה למפעיל
+      if (ADMIN_FORWARD_CHAT_ID) {
+        await tg('sendPhoto', {
+          chat_id: ADMIN_FORWARD_CHAT_ID,
+          photo: file_id,
+          caption: `אישור תשלום מהמשתמש.\nChat: ${chat_id}\nAmount: ${amount ?? '-'} TON`
+        });
+      }
+
+      awaitingProof.set(chat_id, false);
+      return;
+    }
+
     // הודעה שנראית כמו ₪ → חישוב + הוראות + כפתורי תשלום (טלגרם בלבד)
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
         const rate = await fetchTonPriceILS();
         const ton = Math.max(0.001, +(ilsMaybe / rate).toFixed(3));
+        lastAmountByChat.set(chat_id, ton);
+        awaitingProof.set(chat_id, false);
         await tg('sendMessage', {
           chat_id,
           text: donationText(ton),
