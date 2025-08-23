@@ -1,12 +1,5 @@
 {
   "url": "https://tonfront.onrender.com",
-  "name": "TON Front",
-  "iconUrl": "https://tonfront.onrender.com/icon.png",
-  "termsOfUseUrl": "https://tonfront.onrender.com/terms.html",
-  "privacyPolicyUrl": "https://tonfront.onrender.com/privacy.html"
-}
-{
-  "url": "https://tonfront.onrender.com",
   "name": "TON Tip Store",
-  "iconUrl": "https://tonfront.onrender.com/assets/icon.png"
+  "iconUrl": "https://tonfront.onrender.com/frontendassets/appicon.png"
 }
