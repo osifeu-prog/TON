@@ -19,7 +19,9 @@ const cfg = {
   minDonationTon: Number(process.env.MIN_DONATION_TON || '1'),
   frontendUrl: process.env.FRONTEND_URL || 'https://tonfront.onrender.com',
   communityLink: process.env.TELEGRAM_COMMUNITY_LINK || '',
-  botLink: process.env.TELEGRAM_BOT_LINK || ''
+  botLink: process.env.TELEGRAM_BOT_LINK || '',
+  // חדש: יעד לכפתור "מעבר לאתר שלי" (מנוהל מה-ENV)
+  walletRedirectUrl: process.env.WALLET_REDIRECT_URL || ''
 };
 
 // === Rate Limit בסיסי ===
