@@ -31,15 +31,13 @@ async function tg(method, payload) {
   return j;
 }
 
-// --- תפריט ראשי: כולל תמיכה, קיצורי ₪, וכפתורי העתקה ---
+// --- תפריט ראשי: כולל תמיכה ותשלום מיידי בש"ח ---
 function mainMenuKeyboard() {
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
     [{ text: 'לקבוצה שלנו', url: COMMUNITY }],
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
     [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
-    [{ text: '📋 כתובת להעתקה', callback_data: 'copy_addr' }],
-    [{ text: '📋 ‏@wallet להעתקה', callback_data: 'copy_wallet' }],
   ];
   if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
   rows.push([
@@ -51,13 +49,13 @@ function mainMenuKeyboard() {
   return { inline_keyboard: rows };
 }
 
-// --- כפתורי תשלום ישיר (ל־flow של ₪/TON) ---
+// --- יצירת כפתורי תשלום לכתובת שלך ---
 function paymentKeyboard(amtTon) {
   const amount = Number(amtTon) || 1;
   const nano = Math.round(amount * 1e9);
   const text = encodeURIComponent('Thanks for your work!');
-  const tkHttps  = SELLER ? `https://app.tonkeeper.com/transfer/${SELLER}?amount=${nano}&text=${text}` : null;
   const tonDeep  = SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${text}` : null;
+  const tkHttps  = SELLER ? `https://app.tonkeeper.com/transfer/${SELLER}?amount=${nano}&text=${text}` : null; // HTTPS works everywhere
   const backSite = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
 
   const rows = [];
@@ -69,31 +67,13 @@ function paymentKeyboard(amtTon) {
   return { inline_keyboard: rows };
 }
 
-// --- הודעת /start משולבת (ללא דיפ-לינק, בלי סכום מוצע מהאתר) ---
-function startCombinedMessage() {
-  return [
-    'ברוך הבא!',
-    '',
-    'כתובת ארנק לתשלום:',
-    SELLER || '—',
-    '',
-    'להצעת סכום: לבחירתכם.',
-    '',
-    'העתיקו את כתובת הארנק (כפתור "📋 כתובת להעתקה" למטה ישלח אותה שוב בשביל העתקה נוחה).',
-    'פתחו את הארנק ובצעו תשלום: https://t.me/wallet',
-    'או העתיקו: @wallet (כפתור "📋 ‏@wallet להעתקה" למטה).',
-    '',
-    'לאחר אישור התשלום ההטבה תישלח אוטומטית כאן בבוט.',
-  ].join('\n');
-}
-
-// --- הודעת תשלום/תרומה (כשמחשבים TON) + כפתורי תשלום ---
+// --- הודעת תשלום/תרומה בסיסית ---
 function donationText(amtTon) {
   const amount = Number(amtTon) || 1;
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amount)}`;
   return [
-    `סכום חישוב לדוגמה: ~${amount} TON.`,
-    '1) פתחו את הארנק ובצעו תשלום.',
+    `מעולה! סכום מוצע: ${amount} TON.`,
+    `1) פתחו את הארנק ובצעו תשלום.`,
     `2) חזרו לאתר לקבלת ההטבה: ${siteUrl}`
   ].join('\n');
 }
@@ -147,43 +127,43 @@ function parseIlsLike(text) {
   return isFinite(v) && v > 0 ? v : null;
 }
 
-// === בריאות ===
+// --- בריאות ---
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'bot', time: new Date().toISOString() });
 });
 
-// === Webhook ===
+// --- Webhook ---
 app.post('/webhook', async (req, res) => {
   try {
     const update = req.body;
-    res.json({ ok: true }); // מיידית
+    res.json({ ok: true }); // השב מידית
 
     // CALLBACK (לחצן)
     if (update.callback_query) {
       const cq = update.callback_query;
       const chat_id = cq.message?.chat?.id;
       const data = cq.data || '';
-      if (!chat_id) { await tg('answerCallbackQuery', { callback_query_id: cq.id }); return; }
+
+      if (!chat_id) {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id });
+        return;
+      }
 
       if (data === 'staking_soon') {
-        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בקרוב! צוות הפיתוח עובד על זה 🚧', show_alert: false });
-        await tg('sendMessage', { chat_id, text: 'סטייקינג — בקרוב 🔜\nנעדכן בקבוצה כשהפיצ׳ר יוכרז.', reply_markup: mainMenuKeyboard() });
+        await tg('answerCallbackQuery', {
+          callback_query_id: cq.id,
+          text: 'בקרוב! צוות הפיתוח עובד על זה 🚧',
+          show_alert: false
+        });
+        await tg('sendMessage', {
+          chat_id,
+          text: 'סטייקינג — בקרוב 🔜\nנעדכן בקבוצה כשהפיצ׳ר יוכרז.',
+          reply_markup: mainMenuKeyboard()
+        });
         return;
       }
 
-      if (data === 'copy_addr') {
-        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'שלחתי את הכתובת להעתקה', show_alert: false });
-        await tg('sendMessage', { chat_id, text: SELLER || '—', reply_markup: mainMenuKeyboard() });
-        return;
-      }
-
-      if (data === 'copy_wallet') {
-        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'שלחתי @wallet להעתקה', show_alert: false });
-        await tg('sendMessage', { chat_id, text: '@wallet', reply_markup: mainMenuKeyboard() });
-        return;
-      }
-
-      // קיצורי ₪
+      // לחצני “מהיר” בש״ח
       const quick = data.match(/^pay_ils_(\d+)$/);
       if (quick) {
         const ils = Number(quick[1]);
@@ -194,7 +174,7 @@ app.post('/webhook', async (req, res) => {
             chat_id,
             text: donationText(ton),
             disable_web_page_preview: true,
-            reply_markup: paymentKeyboard(ton)
+            reply_markup: paymentKeyboard(ton) // כפתורי תשלום ישירים
           });
         } catch (e) {
           console.error('[price quick]', e?.message || e);
@@ -209,7 +189,11 @@ app.post('/webhook', async (req, res) => {
       }
 
       if (data === 'pay_ils') {
-        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'הקלד/י סכום בש״ח…', show_alert: false });
+        await tg('answerCallbackQuery', {
+          callback_query_id: cq.id,
+          text: 'הקלד/י סכום בש״ח…',
+          show_alert: false
+        });
         await tg('sendMessage', {
           chat_id,
           text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר קישור תשלום 👇',
@@ -228,10 +212,31 @@ app.post('/webhook', async (req, res) => {
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
-    // /start (+payload) — הודעה אחת משולבת
+    // /start donate_X
     if (text.startsWith('/start')) {
-      // לא מציגים כאן דיפ-לינק ולא סכום מוצע — לפי בקשתך
-      await tg('sendMessage', { chat_id, text: startCombinedMessage(), reply_markup: mainMenuKeyboard(), disable_web_page_preview: true });
+      const payload = text.split(' ')[1] || '';
+      if (payload.startsWith('donate_')) {
+        const amt = payload.split('_')[1] || '1';
+        await tg('sendMessage', {
+          chat_id,
+          text: donationText(amt),
+          disable_web_page_preview: true,
+          reply_markup: paymentKeyboard(amt)
+        });
+        return;
+      }
+      // /start רגיל — ברוך הבא + הצעה + תפריט
+      await tg('sendMessage', {
+        chat_id,
+        text: 'ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.',
+        reply_markup: mainMenuKeyboard()
+      });
+      await tg('sendMessage', {
+        chat_id,
+        text: donationText(1),
+        disable_web_page_preview: true,
+        reply_markup: paymentKeyboard(1)
+      });
       return;
     }
 
@@ -241,7 +246,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // אם ההודעה נראית כמו ₪ — תפס גם בלי state
+    // אם ההודעה נראית כמו סכום בש"ח — תפס גם בלי state
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
