@@ -39,7 +39,7 @@ function mainMenuKeyboard() {
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
     [{ text: 'לקבוצה שלנו', url: COMMUNITY }],
     [{ text: 'סטייקינג — בקרוב', callback_data: 'staking_soon' }],
-    [{ text: 'תמיכה ב-Telegram', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
+    [{ text: 'לתמיכה טכנית', url: `https://t.me/${SUPPORT_TG_USERNAME}` }],
     [{ text: '📋 כתובת להעתקה', callback_data: 'copy_addr' }],
     [{ text: '📋 ‏@wallet להעתקה', callback_data: 'copy_wallet' }],
   ];
