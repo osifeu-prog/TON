@@ -173,5 +173,93 @@ async function loadConfig() {
       if (isUnlocked()) showUnlocked();
     })();
   </script>
+<script type="module">
+  // טוען SDK מהחלון (מוזרק בסעיף 2.1)
+  const { TonConnectUI, THEME } = window.__TonConnect;
+
+  // URL ל־API שלך (כבר רץ)
+  const API_BASE = 'https://ton-2eg2.onrender.com'; // /health עובד אצלך
+
+  // מושך קונפיג מה־API כדי לדעת כתובת ארנק וסכום ברירת מחדל
+  async function loadConfig() {
+    const res = await fetch(`${API_BASE}/config`, { cache: 'no-store' });
+    return res.json();
+  }
+
+  // המרת TON ל-nanoTON
+  const toNano = (x) => (Math.round(Number(x) * 1e9)).toString();
+
+  // אחיזות ל-DOM (התאם IDs אם שונים אצלך)
+  const payBtn   = document.getElementById('payWithWallet');
+  const statusEl = document.getElementById('tc-status');
+  const amountInput = document.querySelector('#amount, #amountInput, input[name="amount"]') || { value: '' };
+
+  // אתחול TonConnect UI: כפתור חיבור + ערכת צבעים
+  const tonConnectUI = new TonConnectUI({
+    manifestUrl: 'https://tonfront.onrender.com/tonconnect-manifest.json',
+    buttonRootId: 'ton-connect',
+    uiPreferences: { theme: 'SYSTEM' } // או THEME.DARK / THEME.LIGHT
+  });
+
+  // הקשב לשינויי סטטוס – כתובת/חיבור
+  tonConnectUI.onStatusChange((walletInfo) => {
+    if (walletInfo?.account) {
+      const addr = walletInfo.account.address; // raw, ניתן להמיר ידידותי אם תרצה
+      statusEl.textContent = `מחובר: ${addr.slice(0, 6)}…${addr.slice(-4)}`;
+    } else {
+      statusEl.textContent = 'לא מחובר';
+    }
+  });
+
+  // תשלום דרך הארנק המחובר
+  payBtn.addEventListener('click', async () => {
+    try {
+      const cfg = await loadConfig(); // sellerTonAddress, minDonationTon
+      const seller = cfg?.sellerTonAddress;
+      if (!seller) {
+        alert('כתובת מקבל (SELLER_TON_ADDRESS) חסרה בקונפיג ה-API.');
+        return;
+      }
+
+      // ודא חיבור
+      const connected = await tonConnectUI.connected;
+      if (!connected) {
+        await tonConnectUI.openModal(); // פותח בוחר ארנקים
+        // מחכה עד חיבור
+        await new Promise((r) => {
+          const unsub = tonConnectUI.onStatusChange((w) => { if (w?.account) { unsub(); r(); } });
+        });
+      }
+
+      // סכום
+      const userAmount = amountInput.value && Number(amountInput.value) > 0
+        ? Number(amountInput.value)
+        : (cfg?.minDonationTon || 0.5);
+
+      const amountNano = toNano(userAmount);
+
+      // עסקה פשוטה: העברת TON לכתובת שלך
+      const tx = {
+        // validUntil בשניות (10 דקות קדימה)
+        validUntil: Math.floor(Date.now() / 1000) + 600,
+        messages: [
+          {
+            address: seller,
+            amount: amountNano
+            // אפשר להוסיף payload (Base64 BOC) אם תרצה הערת תשלום בפועל
+          }
+        ]
+      };
+
+      // UX: מתבקש ב־Docs להגדיר skipRedirectToWallet בהתאם לקוד אסינכרוני
+      const res = await tonConnectUI.sendTransaction(tx, { skipRedirectToWallet: 'ios' });
+      // res.boc -> חתימת עסקה; אפשר להשתמש באקספלורר שלך כדי לאשש
+      alert('הבקשה נשלחה לארנק. אשר/י בארנק כדי להשלים.');
+    } catch (e) {
+      console.error(e);
+      alert('שגיאה בשליחה דרך הארנק.');
+    }
+  });
+</script>
 </body>
 </html>
