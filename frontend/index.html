@@ -13,7 +13,6 @@
     .glass{backdrop-filter:blur(12px)}
   </style>
 
-  <!-- (אופציונלי) SEO/OG -->
   <meta name="description" content="תרומות TON מהירות, קהילה עסקית בטלגרם והטבות לחברים.">
   <meta property="og:title" content="האתר הזה יכול להיות שלך">
   <meta property="og:description" content="תרומת TON מהירה וידידותית. הצטרפו לקהילה וקבלו הטבות.">
@@ -21,10 +20,7 @@
   <meta property="og:url" content="https://tonfront.onrender.com/">
   <meta name="twitter:card" content="summary_large_image">
 
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- TON Connect UI -->
+  <!-- TonConnect UI (הרשמה/חיבור ארנק) -->
   <script type="module">
     import { TonConnectUI } from 'https://esm.run/@tonconnect/ui@2.2.0';
     window.__tonConnectUI = new TonConnectUI({
@@ -39,21 +35,17 @@
   </script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
-  <!-- HEADER -->
   <header class="p-4 sm:p-6">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
       <div class="text-xl sm:text-2xl font-extrabold tracking-tight">האתר הזה יכול להיות שלך</div>
-      <a id="communityLinkTop"
-         class="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition shadow w-auto">
+      <a id="communityLinkTop" class="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition shadow w-auto">
         הצטרפות לקהילה
       </a>
     </div>
   </header>
 
-  <!-- MAIN -->
   <main class="max-w-4xl mx-auto px-4 sm:px-6">
     <div class="grid gap-6 sm:grid-cols-2 items-start">
-      <!-- מידע / פרימיום -->
       <section class="p-5 sm:p-6 rounded-3xl bg-white/60 glass shadow-lg">
         <img
           src="/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg"
@@ -61,27 +53,21 @@
           class="rounded-2xl w-full h-48 sm:h-56 md:h-64 object-cover mb-4" alt="hero" />
         <h1 class="text-2xl sm:text-3xl font-extrabold mb-2">ארנק טלגרם למסחר חופשי</h1>
         <p class="text-gray-700 leading-relaxed">
-          האם ידעתם? כל עוד אתם משתמשים בארנק טלגרם הכספים שלכם מוגדרים כהשקעה לכל דבר, על כן לא מחוייבים במס בפועל, ומאפשרים מסחר חופשי ללא מיסים והיטלים
+          האם ידעתם? כל עוד אתם משתמשים בארנק טלגרם הכספים שלכם המצויים בו מוגדרים כהשקעה לכל דבר, על כן *לא* מחוייבים במס בפועל!!
         </p>
-
-        <!-- בלוק טקסט  -->
         <section class="mt-5 p-4 rounded-2xl bg-gray-50 text-gray-800">
           <h3 class="font-bold mb-2">התוכן שלכם/הכסף שלכם/החופש שלכם</h3>
-          <p>
-            רק דמיינו זירת מסחר חופשית מאובטחת בלי ניתנת למעקב, קנסות או עיקולים ולמעשה עצמאית לחלוטין, בה גם התוכן שלכם ומרכולתכם יכול להיות כאן!
-          </p>
+          <p>רק דמיינו זירת מסחר חופשית בלי ניתנת למעקב או עיקולים ולמעשה עצמאית לחלוטין, התוכן שלכם יכול להיות כאן!</p>
         </section>
-
         <div class="mt-4 rounded-xl bg-blue-50 p-4 text-blue-900">
-          💡 כל תרומה לקידום שיפור המצב בארצנו, יוקר המחיה ובקרוב קמפיין רחב לשחרור החטופים, למען יושבי ארצנו תזכה במוצרים יחודיים לחברינו 🎁
+          💡 כל תרומה לקידום שיפור יוקר המחיה והתנאים בארצנו תזכה במוצרים יחודיים לחברינו 🎁
         </div>
       </section>
 
-      <!-- בלוק תמיכה/תשלום -->
       <section class="p-5 sm:p-6 rounded-3xl bg-white shadow-xl md:sticky md:top-6">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <h2 class="text-2xl font-bold">תמכו ביוצרים</h2>
+            <h2 class="text-2xl font-bold">תמכו ביוצר</h2>
             <div id="registerHint" class="text-xs text-amber-700 mt-1">להרשמה: התחברו עם הארנק (CONNECT) ואז תפתח אפשרות התשלום.</div>
           </div>
           <div id="ton-connect"></div>
@@ -90,7 +76,7 @@
         <div class="mt-4">
           <label class="block text-sm text-gray-600 mb-1">סכום התרומה (TON)</label>
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input id="amount" type="number" step="0.01" min="0"
+            <input id="amount" type="number" step="0.001" min="0.001"
                    class="w-full sm:w-40 px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring focus:border-blue-400"
                    value="1" />
             <button id="payNow"
@@ -103,58 +89,49 @@
           <div id="tc-status" class="mt-2 text-xs text-gray-500">לא מחובר</div>
         </div>
 
-        <!-- בונוס לאחר תרומה (MVP) -->
         <div class="mt-6 rounded-xl bg-green-50 p-4 text-green-900 hidden" id="unlockedBox">
           ✅ תודה על תרומתכם! התוכן נחשף: <a href="#" class="underline">הורדת קובץ/קישור בונוס</a>
         </div>
 
-        <!-- הכפתורים למטה -->
         <div class="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button id="payWithTelegram"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl border hover:bg-gray-50 transition">
+          <button id="payWithTelegram" class="w-full sm:w-auto px-4 py-2 rounded-xl border hover:bg-gray-50 transition">
             לבוט טלגרם שלנו
           </button>
-          <button id="openWallet"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 transition">
-            מעבר לאתר שלנו
+          <button id="openWallet" class="w-full sm:w-auto px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 transition">
+            מעבר לאתר שלי
           </button>
         </div>
 
         <div class="mt-4 text-right">
-          <button id="unlockBtn"
-                  class="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
+          <button id="unlockBtn" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition">
             כבר תרמתי — פתח בונוס
           </button>
-          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן" או לחץ "מעבר לאתר שלנו".</div>
+          <div id="tg-hint" class="mt-2 text-xs text-amber-700 hidden">נראה שאתה בתוך דפדפן טלגרם. אם החיבור לא נפתח, נסה "פתח בדפדפן".</div>
         </div>
       </section>
     </div>
 
-    <!-- בלוק קהילה -->
     <section class="mt-8 p-5 sm:p-6 rounded-3xl bg-white/70 glass shadow-lg">
-      <h2 class="text-2xl font-extrabold mb-2">הצטרפו לקהילה בטלגרם</h2>
+      <h2 class="text-2ל font-extrabold mb-2">הצטרפו לקהילה בטלגרם</h2>
       <p class="text-gray-700">התייעצו, קבלו עדכונים, ושאלות על תשלומי TON לעסק שלכם גם. הצטרפו לקהילה העסקית החזקה בארץ.</p>
-      <a id="communityLinkBottom"
-         class="mt-4 inline-block px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow">
+      <a id="communityLinkBottom" class="mt-4 inline-block px-5 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 shadow">
         מעבר לקהילה
       </a>
     </section>
 
     <footer class="py-10 text-center text-gray-500">
-     🚀 פרויקט זה נבנה על רשת טלגרם המיוצגת על ידי מטבע סלה ללא גבולות שהונפק על ידי "תנועת אחדות - החופש שלנו" 🚀
+      🚀 פרויקט זה נבנה על רשת טלגרם המיוצגת על ידי מטבע סלה ללא גבולות שהונפק על ידי "תנועת אחדות - החופש שלנו" 🚀
     </footer>
   </main>
 
-  <!-- === קונפיג מה-API (defaults + פתיחה מחוץ למיני-אפ) === -->
+  <!-- קונפיג + רישום/תשלום (לוגיקה קיימת אצלך) -->
   <script>
     const API_BASE = 'https://ton-2eg2.onrender.com';
 
-    // ברירות-מחדל כדי שהלינקים יעבדו גם אם /config מתעכב/ריק
-    const DEFAULTS = {
-      communityLink: 'https://t.me/+HIzvM8sEgh1kNWY0',
-      botLink: 'https://t.me/hbdcommunity_bot',
-      walletRedirectUrl: 'https://slhisrael.com/'
-    };
+    function toNano(ton){ return Math.round(Number(ton) * 1e9); }
+    function saveUnlocked(){ localStorage.setItem('unlocked','1'); }
+    function isUnlocked(){ return localStorage.getItem('unlocked')==='1'; }
+    function showUnlocked(){ document.getElementById('unlockedBox').classList.remove('hidden'); }
 
     async function fetchMaybeJSON(url, opts={}) {
       const res = await fetch(url, { mode: 'cors', ...opts });
@@ -164,7 +141,6 @@
       if (ct.includes('application/json')) return JSON.parse(text);
       try { return JSON.parse(text); } catch { throw new Error('Not JSON ('+ct+')'); }
     }
-
     async function loadConfigWithRetry(tries=8) {
       const base = API_BASE.replace(/\/+$/,'');
       let lastErr;
@@ -179,25 +155,8 @@
       }
       throw lastErr;
     }
-
-    // פתיחת לינק חיצוני מבלי לסגור את המיני-אפ
-    function openExternal(url) {
-      if (openExternal._busy) return;           // מניעת כפולים
-      openExternal._busy = true;
-      setTimeout(()=>{ openExternal._busy = false; }, 800);
-
-      try {
-        if (window.Telegram?.WebApp?.openLink) {
-          window.Telegram.WebApp.openLink(url, { try_browser: true });
-          return;
-        }
-      } catch {}
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-
     (async () => {
-      const serverCfg = await loadConfigWithRetry().catch(() => ({}));
-      const cfg = { ...DEFAULTS, ...(serverCfg || {}) };
+      const cfg = await loadConfigWithRetry();
       window.__cfg = cfg;
 
       const amountEl = document.getElementById('amount');
@@ -208,17 +167,10 @@
       const registerHint = document.getElementById('registerHint');
 
       amountEl.value = cfg.minDonationTon ?? 1;
+      const botOrCommunity = (cfg.botLink || cfg.communityLink || '').trim();
+      if (commTop) commTop.href = cfg.communityLink || botOrCommunity || '#';
+      if (commBot) commBot.href = cfg.communityLink || botOrCommunity || '#';
 
-      // קישורי קהילה – נפתחו בחוץ (שומר מיני-אפ חי)
-      const communityHref = (cfg.communityLink || cfg.botLink || DEFAULTS.communityLink).trim();
-      [commTop, commBot].forEach(a => {
-        if (!a) return;
-        a.href = communityHref || '#';
-        a.target = '_blank'; a.rel = 'noopener';
-        a.addEventListener('click', (ev) => { ev.preventDefault(); if (communityHref) openExternal(communityHref); }, { passive:true });
-      });
-
-      // TonConnect: הפעל/נטרל כפתור תשלום רק לאחר התחברות
       const tc = window.__tonConnectUI;
       function setRegisteredUI(isOn, address='') {
         const payBtn = document.getElementById('payNow');
@@ -234,122 +186,83 @@
           registerHint?.classList.remove('hidden');
         }
       }
-      tc.onStatusChange((w) => {
-        if (w?.account?.address) setRegisteredUI(true, w.account.address);
-        else setRegisteredUI(false);
+      tc.onStatusChange(async (w) => {
+        if (w?.account?.address) {
+          const addr = w.account.address;
+          setRegisteredUI(true, addr);
+          try {
+            await fetch(API_BASE + '/log-donation', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ source:'register', walletAddress: addr, ua: navigator.userAgent })
+            });
+          } catch {}
+        } else {
+          setRegisteredUI(false);
+        }
       });
       if (tc?.connected && tc?.account?.address) setRegisteredUI(true, tc.account.address);
 
-      // בונוס MVP
-      unlockBtn.onclick = () => {
-        if (localStorage.getItem('unlocked')==='1') document.getElementById('unlockedBox').classList.remove('hidden');
-        else alert('הבונוס נפתח אחרי תרומה (MVP).');
-      };
-      if (localStorage.getItem('unlocked')==='1') document.getElementById('unlockedBox').classList.remove('hidden');
+      unlockBtn.onclick = () => { if (isUnlocked()) showUnlocked(); else alert('הבונוס נפתח אחרי תרומה (MVP).'); };
+      if (isUnlocked()) showUnlocked();
 
       if (/Telegram/i.test(navigator.userAgent||'')) {
-        document.getElementById('tg-hint')?.classList.remove('hidden');
+        const hint = document.getElementById('tg-hint');
+        if (hint) hint.classList.remove('hidden');
       }
+
+      // תשלום כרגיל (TonConnect → fallback)
+      const payNowBtn     = document.getElementById('payNow');
+      const tgBtn         = document.getElementById('payWithTelegram');
+      const openWalletBtn = document.getElementById('openWallet');
+
+      payNowBtn.addEventListener('click', async () => {
+        const seller = cfg.sellerTonAddress || '';
+        if (!seller) { alert('SELLER_TON_ADDRESS חסר ב-API'); return; }
+        const amt = Math.max(0.001, parseFloat(amountEl.value) || (cfg.minDonationTon || 1));
+        const nano = String(Math.round(amt * 1e9));
+        const tc = window.__tonConnectUI;
+
+        if (!tc?.connected) { try { await tc.openModal?.(); } catch {} }
+        if (tc?.connected) {
+          try {
+            const tx = { validUntil: Math.floor(Date.now()/1000) + 600, messages: [{ address: seller, amount: nano }] };
+            await tc.sendTransaction(tx);
+            fetch(API_BASE + '/log-donation', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ amountTon: amt, to: seller, source: 'tonconnect' }) }).catch(()=>{});
+            localStorage.setItem('unlocked','1'); showUnlocked();
+            return;
+          } catch (e) { console.warn('TONCONNECT_FALLBACK', e); }
+        }
+        const deeplink = `ton://transfer/${seller}?` + new URLSearchParams({ amount: nano, text: 'Thanks for your work!' });
+        let returned = false;
+        const visHandler = () => { if (document.visibilityState === 'visible' && !returned){ returned=true; localStorage.setItem('unlocked','1'); showUnlocked(); document.removeEventListener('visibilitychange', visHandler);} };
+        document.addEventListener('visibilitychange', visHandler);
+        window.location.href = deeplink;
+        setTimeout(() => { if (document.visibilityState === 'visible') window.open('https://t.me/wallet', '_blank', 'noopener'); }, 1200);
+      });
+
+      // לבוט/קהילה
+      tgBtn.addEventListener('click', () => {
+        const amt = parseFloat(amountEl.value) || (cfg.minDonationTon || 1);
+        let base = (cfg.botLink || cfg.communityLink || '').trim();
+        if (!base) { alert('לא הוגדר קישור טלגרם (bot/community) ב-API'); return; }
+        const m = base.match(/^https:\/\/t\.me\/([A-Za-z0-9_]+)$/);
+        if (m && m[1].endsWith('_bot')) base = `${base}${base.includes('?') ? '&' : '?'}start=donate_${encodeURIComponent(amt)}`;
+        window.open(base, '_blank', 'noopener');
+      });
+
+      // מעבר לאתר שלי (מה-API)
+      openWalletBtn.addEventListener('click', () => {
+        const url = (cfg.walletRedirectUrl || 'https://slhisrael.com').trim();
+        window.open(url, '_blank', 'noopener');
+      });
     })().catch(e => {
       console.error('שגיאה בטעינת קונפיג:', e);
       const msg = document.createElement('div');
       msg.className = 'mx-auto max-w-4xl my-4 p-3 rounded-xl bg-red-50 text-red-800';
       msg.dir = 'rtl';
-      msg.innerText = 'המערכת מתחממת… נסו לרענן בעוד מספר שניות. (פרטים בקונסול)';
+      msg.innerText = 'המערכת מתחממת… נסו לרענן בעוד מספר שניות.';
       document.body.prepend(msg);
-    });
-  </script>
-
-  <!-- === תשלום / טלגרם / מעבר לאתר (עם defaults) === -->
-  <script type="module">
-    const payNowBtn     = document.getElementById('payNow');
-    const tgBtn         = document.getElementById('payWithTelegram');
-    const openWalletBtn = document.getElementById('openWallet');
-
-    function openExternal(url) {
-      if (openExternal._busy) return;
-      openExternal._busy = true;
-      setTimeout(()=>{ openExternal._busy = false; }, 800);
-      try {
-        if (window.Telegram?.WebApp?.openLink) {
-          window.Telegram.WebApp.openLink(url, { try_browser: true });
-          return;
-        }
-      } catch {}
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-
-    payNowBtn.addEventListener('click', async () => {
-      const cfg = window.__cfg || {};
-      const seller = (cfg.sellerTonAddress || '').trim();
-      if (!seller) { alert('SELLER_TON_ADDRESS חסר ב-API'); return; }
-
-      const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
-      const nano = String(Math.round(amt * 1e9));
-      const tc = window.__tonConnectUI;
-
-      if (!tc?.connected) { try { await tc.openModal?.(); } catch {} }
-      if (tc?.connected) {
-        try {
-          const tx = {
-            validUntil: Math.floor(Date.now() / 1000) + 600,
-            messages: [{ address: seller, amount: nano }]
-          };
-          await tc.sendTransaction(tx);
-          try {
-            await fetch(API_BASE + '/log-donation', {
-              method: 'POST',
-              headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ amountTon: amt, to: seller, source: 'tonconnect' })
-            });
-          } catch {}
-          localStorage.setItem('unlocked','1');
-          document.getElementById('unlockedBox').classList.remove('hidden');
-          return;
-        } catch (e) {
-          console.error('sendTransaction failed, fallback to deeplink', e);
-        }
-      }
-
-      // Fallback: deeplink → ואם עוד נשארנו בדף, פותחים Telegram Wallet בחוץ
-      const deeplink = `ton://transfer/${seller}?` + new URLSearchParams({ amount: nano, text: 'Thanks for your work!' }).toString();
-      let returned = false;
-      const onBack = () => {
-        if (returned) return;
-        returned = true;
-        fetch(API_BASE + '/log-donation', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ amountTon: amt, to: seller, comment: 'deeplink', source: 'payNow' })
-        }).catch(()=>{});
-        localStorage.setItem('unlocked','1');
-        document.getElementById('unlockedBox').classList.remove('hidden');
-        document.removeEventListener('visibilitychange', visHandler);
-      };
-      const visHandler = () => { if (document.visibilityState === 'visible') onBack(); };
-      document.addEventListener('visibilitychange', visHandler);
-      window.location.href = deeplink;
-      setTimeout(() => { if (document.visibilityState === 'visible') openExternal('https://t.me/wallet'); }, 1200);
-    });
-
-    // טלגרם – עם defaults אם ה־API ריק
-    tgBtn.addEventListener('click', () => {
-      const cfg = window.__cfg || {};
-      const amt = parseFloat(document.getElementById('amount').value) || (cfg.minDonationTon || 1);
-      let base = (cfg.botLink || cfg.communityLink || DEFAULTS.botLink || DEFAULTS.communityLink).trim();
-      if (!base) { alert('לא הוגדר קישור טלגרם (bot/community)'); return; }
-      const m = base.match(/^https:\/\/t\.me\/([A-Za-z0-9_]+)$/);
-      if (m && m[1].endsWith('_bot')) {
-        base = `${base}${base.includes('?') ? '&' : '?'}start=donate_${encodeURIComponent(amt)}`;
-      }
-      openExternal(base);
-    });
-
-    // "מעבר לאתר שלנו" – עם default אם אין ב־API
-    openWalletBtn.addEventListener('click', () => {
-      const cfg = window.__cfg || {};
-      const url = (cfg.walletRedirectUrl || DEFAULTS.walletRedirectUrl).trim();
-      openExternal(url);
     });
   </script>
 </body>
