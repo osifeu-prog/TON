@@ -16,7 +16,13 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
 const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
-const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || '';
+
+// יעד העברת צילומי אישור:
+// העדפה ל-RECEIPTS_CHAT_ID (מספרי, למשל -100xxxxxxxxxx). אם לא הוגדר – נשתמש ב-ADMIN_FORWARD_CHAT_ID (גם מספרי).
+const RECEIPTS_CHAT_ID = process.env.RECEIPTS_CHAT_ID ? Number(process.env.RECEIPTS_CHAT_ID) : null;
+const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID ? Number(process.env.ADMIN_FORWARD_CHAT_ID) : null;
+
+// כתובת ציבורית לבוט לצורך webhook (ללא '/' בסוף)
 const BOT_PUBLIC_URL = (process.env.BOT_PUBLIC_URL || '').replace(/\/+$/, '');
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
@@ -34,7 +40,7 @@ async function tg(method, payload) {
   return j;
 }
 
-// Auto set webhook on boot (אם יש כתובת פומבית)
+// Auto set webhook on boot
 async function ensureWebhook() {
   if (!BOT_PUBLIC_URL) return;
   const url = `${BOT_PUBLIC_URL}/webhook`;
@@ -57,7 +63,7 @@ function mainMenuKeyboard() {
     [{ text: 'תרומה', callback_data: 'donate_steps' }],
     [{ text: 'חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
-  // HIDDEN להמשך (נשמרו בקוד, לא מוצגים):
+  // ===== נשמר לקראת עתיד (מוסתר כעת) =====
   // rows.push([{ text: '₪50',  callback_data: 'pay_ils_50' },
   //            { text: '₪100', callback_data: 'pay_ils_100' },
   //            { text: '₪200', callback_data: 'pay_ils_200' }]);
@@ -111,32 +117,6 @@ function donateInstructionsText(amountHintTon) {
     '',
     `לאחר האישור נשגר את ההטבה. אפשר גם לחזור לאתר: ${siteUrl}`
   ].join('\n');
-}
-
-// (אופציונלי) AI — נשמר לעתיד
-async function aiAnswer(userText) {
-  if (!OPENAI_API_KEY) return null;
-  const { default: OpenAI } = await import('openai');
-  const client = new OpenAI({ apiKey: OPENAI_API_KEY });
-  const system = [
-    'אתה עוזר חכם עבור קהילת TON.',
-    'הנחיה: הפנה משתמשים לתשלום/תרומה דרך האתר או הארנק; אל תבקש פרטים אישיים.',
-    `קישור אתר: ${FRONTEND_URL}.`,
-    COMMUNITY ? `קהילה: ${COMMUNITY}.` : '',
-    BOT_LINK ? `בוט: ${BOT_LINK}.` : ''
-  ].filter(Boolean).join(' ');
-
-  const resp = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user',   content: userText }
-    ],
-    temperature: 0.3,
-    max_tokens: 350
-  });
-  const content = resp.choices?.[0]?.message?.content?.trim();
-  return content || null;
 }
 
 // === Health ===
@@ -228,6 +208,12 @@ app.post('/webhook', async (req, res) => {
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
+    // /id – החזרת chat_id לקבלה מהירה של מזהה קבוצה
+    if (text === '/id') {
+      await tg('sendMessage', { chat_id, text: `chat_id: ${chat_id}` });
+      return;
+    }
+
     // /start — תמונת HERO + הודעת פתיחה + תפריט
     if (text.startsWith('/start')) {
       if (HERO_IMAGE_URL) {
@@ -250,36 +236,31 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // קבלת תמונה → לאדמין (אם מוגדר), תודה למשתמש
+    // הועלתה תמונה → שליחה לאדמין/לקבוצה
     if (msg.photo && msg.photo.length) {
       await tg('sendMessage', { chat_id, text: 'התקבל צילום מסך. תודה! נעדכן לאחר אימות.', reply_markup: mainMenuKeyboard() });
-      if (ADMIN_FORWARD_CHAT_ID) {
-        const file_id = msg.photo[msg.photo.length - 1].file_id;
-        const fromUser = msg.from?.username ? `@${msg.from.username}` : `${msg.from?.first_name || ''} ${msg.from?.last_name || ''}`.trim();
-        await tg('sendPhoto', {
-          chat_id: ADMIN_FORWARD_CHAT_ID,
-          photo: file_id,
-          caption: `אישור תשלום התקבל מ־${fromUser || 'משתמש'} (chat_id=${chat_id}).`,
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: 'אשר', callback_data: `admin_approve_${chat_id}` }],
-              [{ text: 'דחה',  callback_data: `admin_reject_${chat_id}` }]
-            ]
-          }
-        });
+
+      const file_id = msg.photo[msg.photo.length - 1].file_id;
+      const fromUser = msg.from?.username ? `@${msg.from.username}` : `${msg.from?.first_name || ''} ${msg.from?.last_name || ''}`.trim();
+      const caption = `אישור תשלום התקבל מ־${fromUser || 'משתמש'} (chat_id=${chat_id}).`;
+
+      // שליחה לקבוצת קבלות (מומלץ, chat_id מספרי) אם מוגדר
+      if (Number.isFinite(RECEIPTS_CHAT_ID)) {
+        await tg('sendPhoto', { chat_id: RECEIPTS_CHAT_ID, photo: file_id, caption });
+      }
+
+      // גיבוי לאדמין (אם יש)
+      if (Number.isFinite(ADMIN_FORWARD_CHAT_ID)) {
+        await tg('sendPhoto', { chat_id: ADMIN_FORWARD_CHAT_ID, photo: file_id, caption });
       }
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים) או תזכורת לתרומה
+    // טקסט חופשי → תשובה פשוטה (AI אופציונלי נשמר)
     if (text) {
-      let answer = null;
-      if (OPENAI_API_KEY) {
-        try { answer = await aiAnswer(text); } catch (e) { console.error('[openai]', e?.message || e); }
-      }
       await tg('sendMessage', {
         chat_id,
-        text: answer || `לתרומה/תשלום: לחצו על "תרומה" בתפריט.`,
+        text: `לתרומה/תשלום: לחצו על "תרומה" בתפריט.`,
         reply_markup: mainMenuKeyboard()
       });
       return;
@@ -294,5 +275,7 @@ app.listen(PORT, () => {
   console.log(`[bot] listening on http://0.0.0.0:${PORT}`);
   console.log(`[bot] FRONTEND_URL=${FRONTEND_URL}`);
   console.log(`[bot] SELLER (present)=${!!SELLER}`);
-  ensureWebhook(); // הגדרת webhook אוטומטית
+  if (RECEIPTS_CHAT_ID) console.log(`[bot] RECEIPTS_CHAT_ID set: ${RECEIPTS_CHAT_ID}`);
+  if (ADMIN_FORWARD_CHAT_ID) console.log(`[bot] ADMIN_FORWARD_CHAT_ID set: ${ADMIN_FORWARD_CHAT_ID}`);
+  ensureWebhook();
 });
