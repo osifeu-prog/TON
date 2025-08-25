@@ -12,7 +12,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // לפרודקשן אפשר לצמצם ל-origin ספציפי
+app.use(cors()); // בפרודקשן אפשר לצמצם ל-origin ספציפי
 app.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
 // ===== Helpers =====
@@ -44,7 +44,7 @@ app.get('/config', (_req, res) => {
   res.json({ ok: true, ...cfg });
 });
 
-// דיבוג: אילו ENV קיימים (בלי לחשוף ערכים)
+// דיבוג: אילו ENV קיימים (לא חושפים ערכים)
 app.get('/config/debug', (_req, res) => {
   res.json({
     ok: true,
@@ -71,7 +71,7 @@ app.get('/config/debug', (_req, res) => {
   });
 });
 
-// ===== Logging to file + optional Postgres (לא מחקתי) =====
+// ===== Logging + optional Postgres (נשמר) =====
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOG_FILE = path.join(__dirname, 'donations.log');
@@ -122,7 +122,7 @@ app.post('/log-donation', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ===== Optional: hard verify via TonAPI/Toncenter (לא מחקתי) =====
+// ===== Optional hard-verify (נשמר) =====
 const TONAPI_KEY = process.env.TONAPI_KEY || '';
 const TONCENTER_KEY = process.env.TONCENTER_API_KEY || '';
 
@@ -172,7 +172,6 @@ async function verifyWithToncenter({ seller, from, minAmountTon, sinceTs }) {
   return { ok: true, found: !!hit };
 }
 
-// GET /verify-donation?amountTon=1&from=EQ...&since=unix_ms
 app.get('/verify-donation', async (req, res) => {
   try {
     const seller = cfg.sellerTonAddress;
