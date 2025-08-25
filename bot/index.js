@@ -15,11 +15,8 @@ const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
-// תמונת HERO לפתיחת /start
 const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
-
-// (אופציונלי) לאדמין: chat_id אליו יגיעו צילומי מסך לאישור ידני
-const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || ''; // לדוגמה: "123456789"
+const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || ''; // אופציונלי לאדמין
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
@@ -36,7 +33,7 @@ async function tg(method, payload) {
   return j;
 }
 
-// === תפריט ראשי (מינימלי לפי הדרישה) ===
+// === תפריט ראשי (מינימלי) ===
 function mainMenuKeyboard() {
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
@@ -45,15 +42,14 @@ function mainMenuKeyboard() {
     [{ text: 'תרומה', callback_data: 'donate_steps' }],
     [{ text: 'חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
-  // HIDDEN (נשמר לעתיד): קיצורי ₪ ו-“תשלום מיידי”
+  // HIDDEN (להמשך): קיצורי ₪, תשלום מיידי, שלחת כתובת
   // rows.push([{ text: '₪50', callback_data: 'pay_ils_50' }, { text: '₪100', callback_data: 'pay_ils_100' }, { text: '₪200', callback_data: 'pay_ils_200' }]);
   // rows.push([{ text: 'תשלום מיידי (₪)', callback_data: 'pay_ils' }]);
-  // HIDDEN: “שלחת כתובת הארנק שלך”
   // rows.push([{ text: 'שלחת כתובת הארנק שלך', callback_data: 'send_from_addr' }]);
   return { inline_keyboard: rows };
 }
 
-// === כפתורי תרומה/אימות לאחר הוראות ===
+// === כפתורי תרומה/אימות ===
 function donateFlowKeyboard() {
   return {
     inline_keyboard: [
@@ -65,19 +61,18 @@ function donateFlowKeyboard() {
   };
 }
 
-// === הודעת /start מאוחדת (תמונה + כיתוב) ===
+// === טקסטים ===
 function startCombinedCaption() {
   return [
     '*ברוך הבא!* השתמשו בתפריט לקבלת עזרה או מעבר לפלטפורמה.',
     '',
-    '• לתרומה: לחצו על ״תרומה״ → קבלו כתובת → פתחו ארנק → בצעו תשלום → העלו צילום → אמתו.',
-    '• תמיכה אנושית: לחצו ״תמיכה״.',
+    '• לתרומה: לחצו ״תרומה״ → קבלו כתובת → פתחו ארנק → בצעו תשלום → העלו צילום → אמתו.',
+    '• לתמיכה אנושית: ״תמיכה״.',
     '',
     'לאחר אישור תשלום ההטבה תישלח כאן בבוט.'
   ].join('\n');
 }
 
-// === הודעת הוראות תרומה (הודעה #2) ===
 function donateInstructionsText(amountHintTon) {
   const lineAmt = amountHintTon ? `סכום שבחרתם קודם: ~${amountHintTon} TON\n\n` : '';
   const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amountHintTon || 1)}`;
@@ -89,21 +84,20 @@ function donateInstructionsText(amountHintTon) {
     '4) העלו כאן צילום אישור התשלום (Screenshot).',
     '5) לחצו על "✅ אמת תשלום".',
     '',
-    `לאחר האישור נשגר לכם את ההטבה. ניתן גם לחזור לאתר: ${siteUrl}`
+    `לאחר האישור נשגר לכם את ההטבה. אפשר גם לחזור לאתר: ${siteUrl}`
   ].join('\n');
 }
 
-// === טקסט "סטייקינג — בקרוב" ===
 function stakingText() {
   return [
     '*בקרוב*',
     '',
-    'סטייקינג (Staking) מאפשר לנעול מטבעות לתקופה ולקבל תגמולים. אנחנו מתעכבים בשלב זה כדי לוודא בטיחות משתמשים, שקיפות ודמי סיכון מינימליים.',
-    'עם השקת המנגנון נפרסם מדריך מלא בקהילה שלנו ונספק אפשרות ״חד-לחיצה״ מהבוט.',
+    'סטייקינג (Staking) מאפשר לנעול מטבעות לתקופה ולקבל תגמולים. אנו מתעכבים כדי להבטיח בטיחות, שקיפות ועלויות סיכון מינימליות.',
+    'עם השקת המנגנון נפרסם מדריך מלא בקהילה ונאפשר הפעלה מהבוט.',
   ].join('\n');
 }
 
-// === AI (אופציונלי) — נשמר לעתיד ===
+// (אופציונלי) AI נשמר לעתיד
 async function aiAnswer(userText) {
   if (!OPENAI_API_KEY) return null;
   const { default: OpenAI } = await import('openai');
@@ -129,7 +123,7 @@ async function aiAnswer(userText) {
   return content || null;
 }
 
-// === בריאות ===
+// === Health ===
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'bot', time: new Date().toISOString() });
 });
@@ -161,12 +155,12 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'donate_steps') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
-        // הודעה #1 — רק הכתובת שלך (נקי להעתקה)
+        // הודעה #1 — הכתובת נקייה להעתקה
         await tg('sendMessage', { chat_id, text: SELLER || '—' });
         // הודעה #2 — הוראות + כפתורים
         await tg('sendMessage', {
           chat_id,
-          text: donateInstructionsText(/* amountHintTon */ null),
+          text: donateInstructionsText(null),
           disable_web_page_preview: true,
           reply_markup: donateFlowKeyboard()
         });
@@ -174,7 +168,7 @@ app.post('/webhook', async (req, res) => {
       }
 
       if (data === 'copy_wallet') {
-        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'שלחתי @wallet', show_alert: false });
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'פתח/י @wallet', show_alert: false });
         await tg('sendMessage', {
           chat_id,
           text: 'כדי לחבר/להתקין ארנק, פתח/י @wallet:',
@@ -200,21 +194,16 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'verify_payment') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'מנסה לאמת…', show_alert: false });
-        // כאן אפשר לשלב אימות on-chain דרך ה-API שלך (verify-donation) — נשאר לעתיד:
-        // await fetch(`${YOUR_API}/verify-donation?...`)
+        // כאן אפשר לשלב אימות on-chain דרך API /verify-donation (נשמר להמשך)
         await tg('sendMessage', {
           chat_id,
-          text: 'בדיקה ראשונית הושלמה. אם ההעברה נקלטה — תקבלי/תקבל הטבה בהודעה נפרדת. במקרה הצורך נבדוק ידנית.',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '⬅️ חזרה לתפריט', callback_data: 'back_menu' }]
-            ]
-          }
+          text: 'בדיקה ראשונית הושלמה. אם ההעברה נקלטה — תקבל/י הטבה בהודעה נפרדת. אם צריך — נבדוק ידנית.',
+          reply_markup: { inline_keyboard: [[{ text: '⬅️ חזרה לתפריט', callback_data: 'back_menu' }]] }
         });
         return;
       }
 
-      // HIDDEN (לשלבים הבאים): קיצורי ₪ / תשלום מיידי / שלחת כתובת הארנק שלך
+      // HIDDEN (להמשך): ₪/מיידי/שלחת כתובת
       // if (data === 'pay_ils_50' || data === 'pay_ils_100' || data === 'pay_ils_200' || data === 'pay_ils' || data === 'send_from_addr') {
       //   await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בשלב זה לא זמין בתפריט', show_alert: false });
       //   return;
@@ -252,7 +241,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // קבלת תמונה — נעביר לאדמין (אם קיים), נודה למשתמש
+    // קבלת תמונה → לאדמין (אם מוגדר), תודה למשתמש
     if (msg.photo && msg.photo.length) {
       await tg('sendMessage', { chat_id, text: 'התקבל צילום מסך. תודה! נעדכן לאחר אימות.', reply_markup: mainMenuKeyboard() });
       if (ADMIN_FORWARD_CHAT_ID) {
@@ -273,7 +262,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים) או קידום כללי
+    // טקסט חופשי → AI (אם קיים) או הודעת קידום לתפריט
     if (text) {
       let answer = null;
       if (OPENAI_API_KEY) {
