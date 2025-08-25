@@ -12,23 +12,31 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // לפרודקשן אפשר לצמצם ל-origin ספציפי
 
-// === CONFIG ===
+// ——— CORS ———
+// לפרודקשן אפשר להקשיח origins לרשימה
+app.use(cors());
+
+// ——— ENV / CONFIG ———
 const cfg = {
   sellerTonAddress: process.env.SELLER_TON_ADDRESS || '',
   minDonationTon: Number(process.env.MIN_DONATION_TON || '1'),
-  frontendUrl: process.env.FRONTEND_URL || 'https://tonfront.onrender.com',
+  frontendUrl: (process.env.FRONTEND_URL || 'https://slhisrael.com').replace(/\/+$/,''),
   communityLink: process.env.TELEGRAM_COMMUNITY_LINK || '',
+  verifiedCommunityLink: process.env.VERIFIED_COMMUNITY_LINK || '', // לינק הזמנה לקבוצה סגורה
   botLink: process.env.TELEGRAM_BOT_LINK || '',
-  walletRedirectUrl: process.env.WALLET_REDIRECT_URL || '' // ← חדש
+  walletRedirectUrl: process.env.WALLET_REDIRECT_URL || ''
 };
 
-// === Rate Limit בסיסי ===
-const limiter = rateLimit({ windowMs: 60_000, max: 60 });
+// אימות קשיח כברירת מחדל, אך נשאיר מסלול צילום
+const HARD_VERIFY_ONLY = String(process.env.HARD_VERIFY_ONLY || 'true').toLowerCase() === 'true';
+const ALLOW_SCREENSHOT_FALLBACK = String(process.env.ALLOW_SCREENSHOT_FALLBACK || 'true').toLowerCase() === 'true';
+
+// ——— RATE LIMIT ———
+const limiter = rateLimit({ windowMs: 60_000, max: 120 });
 app.use(limiter);
 
-// === בריאות/קונפיג ===
+// ——— HEALTH / CONFIG ———
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'api', time: new Date().toISOString() });
 });
@@ -36,16 +44,16 @@ app.get('/config', (_req, res) => {
   res.json({ ok: true, ...cfg });
 });
 
-// === לוגים: לקובץ (fallback) + Postgres (Production) ===
+// ——— LOG FILE FALLBACK ———
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LOG_FILE = path.join(__dirname, 'donations.log');
-
 function appendLog(line) {
-  try { fs.appendFileSync(LOG_FILE, line + '\n', { encoding: 'utf8' }); }
-  catch (e) { console.error('[log] append error', e); }
+  try { fs.appendFileSync(LOG_FILE, line + '\n', 'utf8'); }
+  catch (e) { console.error('[log append]', e.message); }
 }
 
+// ——— POSTGRES ———
 const { Pool } = pkg;
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const pool = DATABASE_URL
@@ -66,15 +74,27 @@ async function ensureSchema() {
       meta jsonb
     );
   `);
+  await pool.query(`
+    create table if not exists verifications (
+      id serial primary key,
+      ts timestamptz default now(),
+      chat_id text,
+      amount_ton numeric,
+      from_addr text,
+      via text,              -- 'tonapi' | 'toncenter' | 'manual' | 'screenshot'
+      verified boolean,
+      proof_file_id text,
+      admin_id text,
+      note text
+    );
+  `);
 }
 ensureSchema().catch(console.error);
 
-// MVP "רך": לוג/DB
+// ——— MVP log endpoint ———
 app.post('/log-donation', async (req, res) => {
   const body = req.body || {};
-  console.log('[donation]', body);
   appendLog(JSON.stringify({ t: Date.now(), ...body }));
-
   if (pool) {
     const { amountTon, to, from, source, comment, meta } = body;
     try {
@@ -82,13 +102,14 @@ app.post('/log-donation', async (req, res) => {
         'insert into donations(amount_ton,to_addr,from_addr,source,comment,meta) values ($1,$2,$3,$4,$5,$6)',
         [amountTon ?? null, to ?? null, from ?? null, source ?? null, comment ?? null, meta ?? null]
       );
-    } catch (e) { console.error('[db insert]', e); }
+    } catch (e) {
+      console.error('[db insert donations]', e.message);
+    }
   }
-
   res.json({ ok: true });
 });
 
-// (אופציונלי) אימות קשיח על שרשרת
+// ——— On-chain verify (TonAPI / Toncenter) ———
 const TONAPI_KEY = process.env.TONAPI_KEY || '';
 const TONCENTER_KEY = process.env.TONCENTER_API_KEY || '';
 
@@ -150,17 +171,64 @@ app.get('/verify-donation', async (req, res) => {
 
     if (TONAPI_KEY) {
       const v = await verifyWithTonAPI({ seller, from, minAmountTon: amountTon, sinceTs });
-      if (v.supported !== false) return res.json({ ok: true, verified: !!v.found, via: 'tonapi' });
+      if (v.supported !== false) {
+        if (pool) {
+          await pool.query(
+            'insert into verifications(chat_id,amount_ton,from_addr,via,verified) values ($1,$2,$3,$4,$5)',
+            [req.query.chatId || null, amountTon, from || null, 'tonapi', v.found]
+          ).catch(()=>{});
+        }
+        return res.json({ ok: true, verified: !!v.found, via: 'tonapi', hard: true });
+      }
     }
     const v2 = await verifyWithToncenter({ seller, from, minAmountTon: amountTon, sinceTs });
-    return res.json({ ok: true, verified: !!v2.found, via: 'toncenter' });
+    if (pool) {
+      await pool.query(
+        'insert into verifications(chat_id,amount_ton,from_addr,via,verified) values ($1,$2,$3,$4,$5)',
+        [req.query.chatId || null, amountTon, from || null, 'toncenter', v2.found]
+      ).catch(()=>{});
+    }
+    res.json({ ok: true, verified: !!v2.found, via: 'toncenter', hard: true });
   } catch (e) {
     console.error('[verify]', e);
     res.status(500).json({ ok: false, error: 'verify_failed' });
   }
 });
 
+// שמירת הוכחה (צילום מסך) מהבוט
+// body: { chatId, amountTon?, fileId, note? }
+app.post('/record-proof', async (req, res) => {
+  const { chatId, amountTon, fileId, note } = req.body || {};
+  appendLog(JSON.stringify({ t: Date.now(), type: 'proof', chatId, amountTon, fileId, note }));
+  if (pool) {
+    try {
+      await pool.query(
+        'insert into verifications(chat_id,amount_ton,via,verified,proof_file_id,note) values ($1,$2,$3,$4,$5,$6)',
+        [chatId ?? null, amountTon ?? null, 'screenshot', false, fileId ?? null, note ?? null]
+      );
+    } catch (e) { console.error('[db insert proof]', e.message); }
+  }
+  res.json({ ok: true });
+});
+
+// Admin approve (ידני)
+// body: { chatId, amountTon?, adminId?, note? }
+app.post('/admin/approve', async (req, res) => {
+  const { chatId, amountTon, adminId, note } = req.body || {};
+  appendLog(JSON.stringify({ t: Date.now(), type: 'admin_approve', chatId, amountTon, adminId, note }));
+  if (pool) {
+    try {
+      await pool.query(
+        'insert into verifications(chat_id,amount_ton,via,verified,admin_id,note) values ($1,$2,$3,$4,$5,$6)',
+        [chatId ?? null, amountTon ?? null, 'manual', true, adminId ?? null, note ?? null]
+      );
+    } catch (e) { console.error('[db insert approve]', e.message); }
+  }
+  res.json({ ok: true });
+});
+
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {
   console.log(`[api] listening on http://0.0.0.0:${port}`);
+  console.log(`[api] HARD_VERIFY_ONLY=${HARD_VERIFY_ONLY} ALLOW_SCREENSHOT_FALLBACK=${ALLOW_SCREENSHOT_FALLBACK}`);
 });
