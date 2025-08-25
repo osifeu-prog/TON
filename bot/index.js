@@ -9,14 +9,15 @@ app.use(express.json());
 // === ENV ===
 const TOKEN   = process.env.TELEGRAM_BOT_TOKEN || '';
 const SELLER  = process.env.SELLER_TON_ADDRESS || '';
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://slhisrael.com').replace(/\/+$/, '');
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://tonfront.onrender.com').replace(/\/+$/, '');
 const COMMUNITY    = process.env.TELEGRAM_COMMUNITY_LINK || 'https://t.me/+HIzvM8sEgh1kNWY0';
 const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity_bot';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
 const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
-const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || ''; // אופציונלי לאדמין
+const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || '';
+const BOT_PUBLIC_URL = (process.env.BOT_PUBLIC_URL || '').replace(/\/+$/, '');
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
@@ -33,7 +34,21 @@ async function tg(method, payload) {
   return j;
 }
 
-// === תפריט ראשי (מינימלי) ===
+// Auto set webhook on boot (אם יש כתובת פומבית)
+async function ensureWebhook() {
+  if (!BOT_PUBLIC_URL) return;
+  const url = `${BOT_PUBLIC_URL}/webhook`;
+  try {
+    const set = await tg('setWebhook', { url });
+    console.log('[bot] setWebhook:', set);
+    const info = await (await fetch(`${TG_API}/getWebhookInfo`)).json();
+    console.log('[bot] getWebhookInfo:', info);
+  } catch (e) {
+    console.error('[bot] setWebhook error', e);
+  }
+}
+
+// === תפריט ראשי (כמו שביקשת) ===
 function mainMenuKeyboard() {
   const rows = [
     [{ text: 'חזרה לאתר', url: FRONTEND_URL }],
@@ -42,8 +57,10 @@ function mainMenuKeyboard() {
     [{ text: 'תרומה', callback_data: 'donate_steps' }],
     [{ text: 'חיבור ארנק אישי', callback_data: 'copy_wallet' }],
   ];
-  // HIDDEN (להמשך): קיצורי ₪, תשלום מיידי, שלחת כתובת
-  // rows.push([{ text: '₪50', callback_data: 'pay_ils_50' }, { text: '₪100', callback_data: 'pay_ils_100' }, { text: '₪200', callback_data: 'pay_ils_200' }]);
+  // HIDDEN להמשך (נשמרו בקוד, לא מוצגים):
+  // rows.push([{ text: '₪50',  callback_data: 'pay_ils_50' },
+  //            { text: '₪100', callback_data: 'pay_ils_100' },
+  //            { text: '₪200', callback_data: 'pay_ils_200' }]);
   // rows.push([{ text: 'תשלום מיידי (₪)', callback_data: 'pay_ils' }]);
   // rows.push([{ text: 'שלחת כתובת הארנק שלך', callback_data: 'send_from_addr' }]);
   return { inline_keyboard: rows };
@@ -73,31 +90,30 @@ function startCombinedCaption() {
   ].join('\n');
 }
 
-function donateInstructionsText(amountHintTon) {
-  const lineAmt = amountHintTon ? `סכום שבחרתם קודם: ~${amountHintTon} TON\n\n` : '';
-  const siteUrl = `${FRONTEND_URL}?donate=${encodeURIComponent(amountHintTon || 1)}`;
-  return [
-    `${lineAmt}הוראות לביצוע תרומה:`,
-    '1) העתיקו את כתובת הארנק (הודעה מעל).',
-    '2) פתחו את Telegram Wallet והדביקו את הכתובת + הסכום.',
-    '3) בצעו תשלום.',
-    '4) העלו כאן צילום אישור התשלום (Screenshot).',
-    '5) לחצו על "✅ אמת תשלום".',
-    '',
-    `לאחר האישור נשגר לכם את ההטבה. אפשר גם לחזור לאתר: ${siteUrl}`
-  ].join('\n');
-}
-
 function stakingText() {
   return [
     '*בקרוב*',
     '',
-    'סטייקינג (Staking) מאפשר לנעול מטבעות לתקופה ולקבל תגמולים. אנו מתעכבים כדי להבטיח בטיחות, שקיפות ועלויות סיכון מינימליות.',
-    'עם השקת המנגנון נפרסם מדריך מלא בקהילה ונאפשר הפעלה מהבוט.',
+    'סטייקינג (Staking) = נעילת מטבעות לתקופה וקבלת תגמולים. אנו מתעכבים כדי להבטיח בטיחות, שקיפות ועלויות סיכון מינימליות.',
+    'עם ההשקה נפרסם מדריך מלא ונאפשר הפעלה מהבוט.',
   ].join('\n');
 }
 
-// (אופציונלי) AI נשמר לעתיד
+function donateInstructionsText(amountHintTon) {
+  const siteUrl = `${FRONTEND_URL}${amountHintTon ? `?donate=${encodeURIComponent(amountHintTon)}` : ''}`;
+  return [
+    'הוראות לביצוע תרומה:',
+    '1) העתיקו את כתובת הארנק שנשלחה עדיין (הודעה הבאה).',
+    '2) פתחו את Telegram Wallet והדביקו את הכתובת + הסכום.',
+    '3) בצעו תשלום.',
+    '4) העלו כאן צילום אישור (Screenshot).',
+    '5) לחצו על "✅ אמת תשלום".',
+    '',
+    `לאחר האישור נשגר את ההטבה. אפשר גם לחזור לאתר: ${siteUrl}`
+  ].join('\n');
+}
+
+// (אופציונלי) AI — נשמר לעתיד
 async function aiAnswer(userText) {
   if (!OPENAI_API_KEY) return null;
   const { default: OpenAI } = await import('openai');
@@ -155,9 +171,9 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'donate_steps') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
-        // הודעה #1 — הכתובת נקייה להעתקה
+        // 1) כתובת נקייה להעתקה בלבד
         await tg('sendMessage', { chat_id, text: SELLER || '—' });
-        // הודעה #2 — הוראות + כפתורים
+        // 2) הוראות + כפתורים (Telegram Wallet בלבד)
         await tg('sendMessage', {
           chat_id,
           text: donateInstructionsText(null),
@@ -186,7 +202,7 @@ app.post('/webhook', async (req, res) => {
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
         await tg('sendMessage', {
           chat_id,
-          text: 'נא העלו כאן צילום מסך של אישור התשלום (תמונה). לאחר מכן לחצו "✅ אמת תשלום".',
+          text: 'נא העלו כאן צילום מסך של אישור התשלום. לאחר מכן לחצו "✅ אמת תשלום".',
           reply_markup: donateFlowKeyboard()
         });
         return;
@@ -194,7 +210,6 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'verify_payment') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'מנסה לאמת…', show_alert: false });
-        // כאן אפשר לשלב אימות on-chain דרך API /verify-donation (נשמר להמשך)
         await tg('sendMessage', {
           chat_id,
           text: 'בדיקה ראשונית הושלמה. אם ההעברה נקלטה — תקבל/י הטבה בהודעה נפרדת. אם צריך — נבדוק ידנית.',
@@ -202,12 +217,6 @@ app.post('/webhook', async (req, res) => {
         });
         return;
       }
-
-      // HIDDEN (להמשך): ₪/מיידי/שלחת כתובת
-      // if (data === 'pay_ils_50' || data === 'pay_ils_100' || data === 'pay_ils_200' || data === 'pay_ils' || data === 'send_from_addr') {
-      //   await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בשלב זה לא זמין בתפריט', show_alert: false });
-      //   return;
-      // }
 
       await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בוצע', show_alert: false });
       return;
@@ -219,7 +228,7 @@ app.post('/webhook', async (req, res) => {
     const chat_id = msg.chat.id;
     const text = (msg.text || '').trim();
 
-    // /start — תמונת HERO + הודעה מאוחדת + תפריט
+    // /start — תמונת HERO + הודעת פתיחה + תפריט
     if (text.startsWith('/start')) {
       if (HERO_IMAGE_URL) {
         await tg('sendPhoto', {
@@ -262,7 +271,7 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים) או הודעת קידום לתפריט
+    // טקסט חופשי → AI (אם קיים) או תזכורת לתרומה
     if (text) {
       let answer = null;
       if (OPENAI_API_KEY) {
@@ -285,4 +294,5 @@ app.listen(PORT, () => {
   console.log(`[bot] listening on http://0.0.0.0:${PORT}`);
   console.log(`[bot] FRONTEND_URL=${FRONTEND_URL}`);
   console.log(`[bot] SELLER (present)=${!!SELLER}`);
+  ensureWebhook(); // הגדרת webhook אוטומטית
 });
