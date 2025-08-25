@@ -10,14 +10,17 @@ app.use(express.json());
 const TOKEN   = process.env.TELEGRAM_BOT_TOKEN || '';
 const SELLER  = process.env.SELLER_TON_ADDRESS || '';
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://slhisrael.com').replace(/\/+$/, '');
-const COMMUNITY    = process.env.TELEGRAM_COMMUNITY_LINK || 'https://t.me/+HIzvM8sEgh1kNWY0';
-const BOT_LINK     = process.env.TELEGRAM_BOT_LINK || 'https://t.me/hbdcommunity_bot';
+const COMMUNITY    = process.env.TELEGRAM_COMMUNITY_LINK || '';
+const VERIFIED_COMMUNITY_LINK = process.env.VERIFIED_COMMUNITY_LINK || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const SUPPORT_TG_USERNAME = (process.env.SUPPORT_TG_USERNAME || 'OsifFintech').replace(/^@/, '');
 const SUPPORT_PHONE       = process.env.SUPPORT_PHONE || '';
-const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || 'https://tonfront.onrender.com/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg').trim();
-const API_BASE = (process.env.API_BASE || 'https://ton-2eg2.onrender.com').replace(/\/+$/, '');
-const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || '';
+const HERO_IMAGE_URL = (process.env.HERO_IMAGE_URL || `${FRONTEND_URL}/frontendassets/536279550_10237941019841362_2777380265588054892_n.jpg`).trim();
+const API_BASE = (process.env.API_BASE || 'https://ton-2eg2.onrender.com').replace(/\/+$/,'');
+const ADMIN_FORWARD_CHAT_ID = process.env.ADMIN_FORWARD_CHAT_ID || ''; // לא חובה
+const ADMIN_IDS = new Set(
+  (process.env.ADMIN_IDS || '').split(',').map(s => Number(s.trim())).filter(x => Number.isFinite(x))
+);
 
 if (!TOKEN) console.warn('[bot] TELEGRAM_BOT_TOKEN missing');
 const TG_API = `https://api.telegram.org/bot${TOKEN}`;
@@ -71,13 +74,13 @@ function parseIlsLike(text) {
   return isFinite(v) && v > 0 ? v : null;
 }
 
-// אימות דרך ה-API שלך
-async function verifyDonationViaAPI({ amountTon, from, sinceTs }) {
+async function verifyDonationViaAPI({ chatId, amountTon, from, sinceTs }) {
   try {
     const u = new URL(API_BASE + '/verify-donation');
+    if (chatId)   u.searchParams.set('chatId', String(chatId));
     if (amountTon) u.searchParams.set('amountTon', String(amountTon));
-    if (from)      u.searchParams.set('from', String(from));
-    if (sinceTs)   u.searchParams.set('since', String(sinceTs));
+    if (from)     u.searchParams.set('from', String(from));
+    if (sinceTs)  u.searchParams.set('since', String(sinceTs));
     const r = await fetch(u.toString());
     const j = await r.json();
     if (j && typeof j.verified !== 'undefined') {
@@ -90,9 +93,15 @@ async function verifyDonationViaAPI({ amountTon, from, sinceTs }) {
   }
 }
 
-// === keyboards ===
+function tonDeepLink(amountTon) {
+  const amount = Math.max(0.001, Number(amountTon) || 0.001);
+  const nano = Math.round(amount * 1e9);
+  const text = encodeURIComponent('Thanks for your work!');
+  return SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${text}` : null;
+}
+
+// ——— Keyboards ———
 async function buildMainMenu() {
-  // תוויות דינמיות (כולל מינימום 0.001 TON)
   let minBtnLabel = 'תרומה מזערית 0.001 TON';
   let btn50 = '₪50', btn100 = '₪100', btn200 = '₪200', payAny = 'תשלום מיידי (₪)';
   try {
@@ -112,7 +121,7 @@ async function buildMainMenu() {
     [{ text: '📋 כתובת שליחה', callback_data: 'copy_addr' }],
     [{ text: '📋 ‏חיבור ארנק אישי', callback_data: 'copy_wallet' }],
     [{ text: '📮 שליחת כתובת הארנק (EQ…/UQ…)', callback_data: 'send_wallet' }],
-    [{ text: '✅ אמת תשלום', callback_data: 'verify_payment' }],
+    [{ text: '✅ אמת תשלום (שרשרת)', callback_data: 'verify_payment' }],
   ];
   if (SUPPORT_PHONE) rows.push([{ text: 'תמיכה (טלפון)', url: `tel:${SUPPORT_PHONE}` }]);
   rows.push([{ text: minBtnLabel, callback_data: 'pay_min_ton' }]);
@@ -125,15 +134,6 @@ async function buildMainMenu() {
   return { inline_keyboard: rows };
 }
 
-// deeplink ל-TON (לתשלום ישיר בקליק)
-function tonDeepLink(amountTon) {
-  const amount = Math.max(0.001, Number(amountTon) || 0.001);
-  const nano = Math.round(amount * 1e9);
-  const text = encodeURIComponent('Thanks for your work!');
-  return SELLER ? `ton://transfer/${SELLER}?amount=${nano}&text=${text}` : null;
-}
-
-// כפתורי הוראות תשלום: Telegram Wallet + deeplink + כלים
 function paymentKeyboard(amountTon) {
   const deeplink = tonDeepLink(amountTon);
   const rows = [];
@@ -141,12 +141,21 @@ function paymentKeyboard(amountTon) {
   rows.push([{ text: 'פתיחה ב-Telegram Wallet', url: 'https://t.me/wallet' }]);
   rows.push([{ text: '📋 כתובת להעתקה', callback_data: 'copy_addr' }]);
   rows.push([{ text: '⬆️ העלאת אישור תשלום', callback_data: 'upload_proof' }]);
-  rows.push([{ text: '✅ אמת תשלום', callback_data: 'verify_payment' }]);
+  rows.push([{ text: '✅ אמת תשלום (שרשרת)', callback_data: 'verify_payment' }]);
   rows.push([{ text: '⬅️ חזרה לתפריט', callback_data: 'back_menu' }]);
   return { inline_keyboard: rows };
 }
 
-// === texts ===
+function adminApproveKeyboard(targetChatId) {
+  return {
+    inline_keyboard: [[
+      { text: '✅ אשר ידנית', callback_data: `admin_ok:${targetChatId}` },
+      { text: '❌ דחה',       callback_data: `admin_rej:${targetChatId}` }
+    ]]
+  };
+}
+
+// ——— Texts ———
 function startCombinedCaption() {
   return [
     'ברוך הבא! השתמשו בתפריט/פקודות לקבלת עזרה או מעבר לפלטפורמה.',
@@ -163,19 +172,17 @@ function donationText(amtTon) {
     'כעת האפליקציה תעביר אתכם לארנק שלכם כדי לבצע תשלום ישירות לכתובת:',
     SELLER || '—',
     '',
-    'לאחר התשלום תתבקשו להזין תמונה של אישור תשלום מהארנק שלכם.',
-    'את צילום המסך העלו לכאן להמשך.',
-    '',
+    'לאחר התשלום תוכלו לאמת על השרשרת (מומלץ) או להעלות צילום מסך של האישור.',
     `בסיום — חזרו לאתר לקבלת ההטבה: ${siteUrl}`
   ].join('\n');
 }
 
-// === health ===
+// ——— Health ———
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'bot', time: new Date().toISOString() });
 });
 
-// === webhook ===
+// ——— Webhook ———
 app.post('/webhook', async (req, res) => {
   try {
     const update = req.body;
@@ -184,6 +191,7 @@ app.post('/webhook', async (req, res) => {
     // CALLBACK
     if (update.callback_query) {
       const cq = update.callback_query;
+      const actorId = cq.from?.id; // לשימוש בהרשאות אדמין
       const chat_id = cq.message?.chat?.id;
       const data = cq.data || '';
       if (!chat_id) { await tg('answerCallbackQuery', { callback_query_id: cq.id }); return; }
@@ -194,16 +202,11 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
-      // ← תיקון: מחזיר רק את הכתובת, ואז כפתורי תשלום
       if (data === 'copy_addr') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'הכתובת נשלחה', show_alert: false });
         await tg('sendMessage', { chat_id, text: SELLER || '—' });
         const amt = lastAmountByChat.get(chat_id) || 0.001;
-        await tg('sendMessage', {
-          chat_id,
-          text: 'אפשרויות תשלום:',
-          reply_markup: paymentKeyboard(amt)
-        });
+        await tg('sendMessage', { chat_id, text: 'אפשרויות תשלום:', reply_markup: paymentKeyboard(amt) });
         return;
       }
 
@@ -229,17 +232,14 @@ app.post('/webhook', async (req, res) => {
           await tg('sendMessage', { chat_id, text: 'לא התקבלה כתובת ארנק. לחצו "📮 שליחת כתובת הארנק" ושלחו EQ…/UQ…' });
           return;
         }
-        const v = await verifyDonationViaAPI({ amountTon: amount, from, sinceTs: since });
+        const v = await verifyDonationViaAPI({ chatId: chat_id, amountTon: amount, from, sinceTs: since });
         if (v.ok && v.verified) {
-          await tg('sendMessage', {
-            chat_id,
-            text: `אימות הצליח ✅\nסכום: ${amount} TON\nמקור: ${from}\n(דרך ${v.via})\nההטבה תישלח כאן בבוט בהמשך התהליך.`
-          });
+          await tg('sendMessage', { chat_id, text: `אימות הצליח ✅\nסכום: ${amount} TON\nמקור: ${from}\n(דרך ${v.via})` });
+          if (VERIFIED_COMMUNITY_LINK) {
+            await tg('sendMessage', { chat_id, text: `הטבה: הצטרפות לקבוצה הסגורה\n${VERIFIED_COMMUNITY_LINK}` });
+          }
         } else {
-          await tg('sendMessage', {
-            chat_id,
-            text: 'טרנזקציה לא אותרה עדיין. זה יכול לקחת עד דקה. נסו שוב מאוחר יותר או העלו צילום אישור תשלום.'
-          });
+          await tg('sendMessage', { chat_id, text: 'טרנזקציה לא אותרה עדיין. זה יכול לקחת עד דקה. נסו שוב מאוחר יותר או העלו צילום אישור תשלום.' });
         }
         return;
       }
@@ -257,7 +257,6 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
-      // מינימום 0.001 TON
       if (data === 'pay_min_ton') {
         const tonAmt = 0.001;
         lastAmountByChat.set(chat_id, tonAmt);
@@ -273,7 +272,7 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
-      // ₪ מהירים
+      // ₪ קיצורי דרך
       const quick = data.match(/^pay_ils_(\d+)$/);
       if (quick) {
         const ils = Number(quick[1]);
@@ -290,12 +289,7 @@ app.post('/webhook', async (req, res) => {
             reply_markup: paymentKeyboard(ton)
           });
         } catch (e) {
-          console.error('[price quick]', e?.message || e);
-          await tg('sendMessage', {
-            chat_id,
-            text: 'לא הצלחתי להביא שער כעת. הקלד/י סכום ב-TON (למשל: 1).',
-            reply_markup: await buildMainMenu()
-          });
+          await tg('sendMessage', { chat_id, text: 'לא הצלחתי להביא שער כעת. הקלד/י סכום ב-TON (למשל: 1).', reply_markup: await buildMainMenu() });
         }
         await tg('answerCallbackQuery', { callback_query_id: cq.id });
         return;
@@ -303,12 +297,46 @@ app.post('/webhook', async (req, res) => {
 
       if (data === 'pay_ils') {
         await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'הקלד/י סכום בש״ח…', show_alert: false });
-        await tg('sendMessage', {
-          chat_id,
-          text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר הוראות 👇',
-          reply_markup: await buildMainMenu()
-        });
+        await tg('sendMessage', { chat_id, text: 'הקלד/י בבקשה סכום בש״ח (לדוגמה: 50). אמיר ל-TON ואחזיר הוראות 👇', reply_markup: await buildMainMenu() });
         return;
+      }
+
+      // ——— Admin callbacks ———
+      if (data.startsWith('admin_ok:') || data.startsWith('admin_rej:')) {
+        const targetChatId = data.split(':')[1];
+        const isAdmin = ADMIN_IDS.has(Number(actorId));
+        await tg('answerCallbackQuery', {
+          callback_query_id: cq.id,
+          text: isAdmin ? 'בוצע' : 'אין הרשאה',
+          show_alert: !isAdmin
+        });
+        if (!isAdmin) return;
+
+        if (data.startsWith('admin_ok:')) {
+          const amt = lastAmountByChat.get(Number(targetChatId)) || null;
+          // רשום לאפליקציה (DB) שהאישור ידני
+          try {
+            await fetch(API_BASE + '/admin/approve', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ chatId: String(targetChatId), amountTon: amt, adminId: String(actorId), note: 'manual approve' })
+            });
+          } catch {}
+
+          if (VERIFIED_COMMUNITY_LINK) {
+            await tg('sendMessage', { chat_id: Number(targetChatId), text: `אושר ידנית ✅\nהטבה: הצטרפות לקבוצה הסגורה\n${VERIFIED_COMMUNITY_LINK}` });
+          } else {
+            await tg('sendMessage', { chat_id: Number(targetChatId), text: `אושר ידנית ✅` });
+          }
+          await tg('sendMessage', { chat_id, text: `נשלחה הטבה למשתמש ${targetChatId}` });
+          return;
+        }
+
+        if (data.startsWith('admin_rej:')) {
+          await tg('sendMessage', { chat_id: Number(targetChatId), text: 'הבקשה נדחתה. ניתן להעלות הוכחה נוספת או לנסות אימות חוזר.' });
+          await tg('sendMessage', { chat_id, text: `נדחתה בקשת המשתמש ${targetChatId}` });
+          return;
+        }
       }
 
       await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'בוצע', show_alert: false });
@@ -350,35 +378,43 @@ app.post('/webhook', async (req, res) => {
       return;
     }
 
-    // אם מצפים להוכחה — קבל צילום
+    // קבלת צילום מסך כהוכחה
     if (awaitingProof.get(chat_id) && msg.photo && msg.photo.length) {
       const file_id = msg.photo[msg.photo.length - 1].file_id;
       const amount = lastAmountByChat.get(chat_id) || null;
 
+      // רשום הוכחה ב-API
+      try {
+        await fetch(API_BASE + '/record-proof', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ chatId: chat_id, amountTon: amount, fileId: file_id })
+        });
+      } catch {}
+
       await tg('sendMessage', { chat_id, text: 'תודה! קיבלנו את צילום האישור. נבדוק ונשלח את ההטבה לאחר אימות ✅' });
+
+      // שליחת צילום למודרטור + כפתורי אישור/דחיה
       if (ADMIN_FORWARD_CHAT_ID) {
         await tg('sendPhoto', {
           chat_id: ADMIN_FORWARD_CHAT_ID,
           photo: file_id,
-          caption: `אישור תשלום מהמשתמש.\nChat: ${chat_id}\nAmount: ${amount ?? '-'} TON`
+          caption: `אישור תשלום מהמשתמש.\nChat: ${chat_id}\nAmount: ${amount ?? '-'} TON`,
+          reply_markup: adminApproveKeyboard(chat_id)
         });
       }
       awaitingProof.set(chat_id, false);
       return;
     }
 
-    // אם מצפים לכתובת ארנק — שמור
+    // שמירת כתובת ארנק מהמשתמש
     if (awaitingWallet.get(chat_id) && text) {
       const addr = text.replace(/\s+/g,'').trim();
       const ok = /^[EU]Q[A-Za-z0-9_-]{46,}$/.test(addr);
       if (ok) {
         walletByChat.set(chat_id, addr);
         awaitingWallet.set(chat_id, false);
-        await tg('sendMessage', {
-          chat_id,
-          text: `כתובת נשמרה: ${addr.slice(0,6)}…${addr.slice(-6)}\nכעת ניתן ללחוץ "✅ אמת תשלום".`,
-          reply_markup: await buildMainMenu()
-        });
+        await tg('sendMessage', { chat_id, text: `כתובת נשמרה: ${addr.slice(0,6)}…${addr.slice(-6)}\nכעת ניתן ללחוץ "✅ אמת תשלום (שרשרת)".`, reply_markup: await buildMainMenu() });
         return;
       } else {
         await tg('sendMessage', { chat_id, text: 'הכתובת לא נראית תקינה. ודאו EQ…/UQ… ונסו שוב.' });
@@ -386,7 +422,7 @@ app.post('/webhook', async (req, res) => {
       }
     }
 
-    // הודעה שנראית כמו ₪ → המרה + הוראות + כפתורי תשלום
+    // הודעה שנראית כמו ₪ → המרה + הוראות + כפתורים
     const ilsMaybe = parseIlsLike(text);
     if (ilsMaybe) {
       try {
@@ -402,17 +438,12 @@ app.post('/webhook', async (req, res) => {
           reply_markup: paymentKeyboard(ton)
         });
       } catch (e) {
-        console.error('[price ils freeform]', e?.message || e);
-        await tg('sendMessage', {
-          chat_id,
-          text: 'לא הצלחתי להביא שער כעת. הקלד/י את הסכום ב-TON (למשל: 1).',
-          reply_markup: await buildMainMenu()
-        });
+        await tg('sendMessage', { chat_id, text: 'לא הצלחתי להביא שער כעת. הקלד/י את הסכום ב-TON (למשל: 1).', reply_markup: await buildMainMenu() });
       }
       return;
     }
 
-    // טקסט חופשי → AI (אם קיים) או קידום
+    // טקסט חופשי → תשובת AI אם קיים, אחרת קידום
     if (text) {
       let answer = null;
       if (OPENAI_API_KEY) {
@@ -423,8 +454,7 @@ app.post('/webhook', async (req, res) => {
             'אתה עוזר חכם עבור קהילת TON.',
             'הנחיה: הפנה משתמשים לתשלום/תרומה דרך האתר או הארנק; אל תבקש פרטים אישיים.',
             `קישור אתר: ${FRONTEND_URL}.`,
-            COMMUNITY ? `קהילה: ${COMMUNITY}.` : '',
-            BOT_LINK ? `בוט: ${BOT_LINK}.` : ''
+            COMMUNITY ? `קהילה: ${COMMUNITY}.` : ''
           ].filter(Boolean).join(' ');
           const resp = await client.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -435,11 +465,7 @@ app.post('/webhook', async (req, res) => {
           answer = resp.choices?.[0]?.message?.content?.trim() || null;
         } catch(e) { console.error('[openai]', e?.message || e); }
       }
-      await tg('sendMessage', {
-        chat_id,
-        text: answer || `לתרומה/תשלום: ${FRONTEND_URL}`,
-        reply_markup: await buildMainMenu()
-      });
+      await tg('sendMessage', { chat_id, text: answer || `לתרומה/תשלום: ${FRONTEND_URL}`, reply_markup: await buildMainMenu() });
     }
   } catch (e) {
     console.error('[webhook handler]', e);
