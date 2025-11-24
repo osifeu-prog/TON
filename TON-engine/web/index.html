@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <title>SLH Ecosystem – TON Analytics & Gateway</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>SLHNET · TON Analytics · Botshop · SLH Wallet</h1>
+            <p>
+                זוהי סביבת המסחר, הניתוח והקהילה המלאה שלך – מנוע ניתוח טכני חי ל-TON/BNB,
+                גישת בוט כניסה (Botshop) וארנק SLH מלא.
+            </p>
+            <div class="hero-actions">
+                <button id="run-analysis">הרץ ניתוח TONUSDT</button>
+                <button id="run-multi">ניתוח מרובה מטבעות</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="card">
+            <h2>לוח מצב · TON Engine (Flask)</h2>
+            <p>מציג את סטטוס השרת והחיבורים.</p>
+            <button id="check-health">בדיקת בריאות מערכת</button>
+            <pre id="health-output" class="output"></pre>
+        </section>
+
+        <section class="card">
+            <h2>ניתוח טכני חי</h2>
+            <p>
+                שימוש בפונקציות הניתוח הטכני המתקדמות שנמצאות במנוע:
+                RSI, MACD, Bollinger Bands, ADX, ATR ועוד.
+            </p>
+            <label>
+                סימבול (ברירת מחדל: TONUSDT):
+                <input id="symbol-input" value="TONUSDT" />
+            </label>
+            <button id="run-custom">הרצת ניתוח סימבול מותאם</button>
+            <pre id="analysis-output" class="output"></pre>
+        </section>
+
+        <section class="card">
+            <h2>SLH Ecosystem Integration</h2>
+            <p>
+                המערכת הזו נבנתה כשכבה טכנית בתוך האקו־סיסטם הרחב של SLH.
+                המבנה המלא בפרויקט:
+            </p>
+            <ul>
+                <li><strong>TON-engine/</strong> – מנוע הניתוח והסיכונים (Flask + ניתוח טכני).</li>
+                <li><strong>botshop/</strong> – שער כניסה / בוט אקו־סיסטם SLH (קמפיינים, לידים, קבוצות).</li>
+                <li><strong>slh-wallet/</strong> – שירות ארנק SLH / API לשכבת הבלוקצ׳יין והמעקב הפיננסי.</li>
+            </ul>
+            <p>
+                לצורך הרצה מקומית, ניתן להפעיל את ה-TON Engine כמרכז הניתוח ואת הבוטים/ארנקים
+                על פי ההוראות בתיקיות <code>botshop/</code> ו-<code>slh-wallet/</code>.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>דוחות, גרפים ואנליזה</h2>
+            <p>
+                המערכת כוללת קבצים פנימיים ליצירת דשבורדים ודוחות (Dashboard, Reports, Charts).
+                ניתן להרחיב ולחבר אותם ל-HTML זה בעתיד.
+            </p>
+            <ul>
+                <li><code>📈 DASHBOARD &amp; UI/dashboard.py</code></li>
+                <li><code>📈 DASHBOARD &amp; UI/report_generator.py</code></li>
+                <li><code>📈 DASHBOARD &amp; UI/chart_generator.py</code></li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>SLH / SELA / NIFTII – Human Capital &amp; Trading Network · Powered by TON &amp; BNB</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
