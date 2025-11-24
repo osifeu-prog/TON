@@ -44,10 +44,26 @@
         </section>
 
         <section class="card">
+            <h2>ארנק קהילה · SLH Wallet</h2>
+            <p>
+                שכבת הארנק (slh-wallet) מספקת API ליתרות, תנועות ומדדים פיננסיים של קופת הקהילה.
+                כאן תוכל לבדוק את היתרות כפי שהן מדווחות מהשירות החי.
+            </p>
+            <div class="wallet-row">
+                <button id="check-wallet">בדיקת יתרות ארנק</button>
+            </div>
+            <p class="hint">
+                ברירת המחדל מניחה שהשירות רץ על <code>http://localhost:8081</code> עם נקודת קצה <code>/balances</code>.<br/>
+                ניתן לערוך את כתובת השרת בקובץ <code>web/app.js</code> תחת הקבוע <code>WALLET_BASE_URL</code>.
+            </p>
+            <pre id="wallet-output" class="output"></pre>
+        </section>
+
+        <section class="card">
             <h2>SLH Ecosystem Integration</h2>
             <p>
                 המערכת הזו נבנתה כשכבה טכנית בתוך האקו־סיסטם הרחב של SLH.
-                המבנה המלא בפרויקט:
+                המבנה המלא במונורפו:
             </p>
             <ul>
                 <li><strong>TON-engine/</strong> – מנוע הניתוח והסיכונים (Flask + ניתוח טכני).</li>
@@ -57,6 +73,25 @@
             <p>
                 לצורך הרצה מקומית, ניתן להפעיל את ה-TON Engine כמרכז הניתוח ואת הבוטים/ארנקים
                 על פי ההוראות בתיקיות <code>botshop/</code> ו-<code>slh-wallet/</code>.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Botshop · שער הכניסה לקהילה</h2>
+            <p>
+                Botshop הוא בוט/שירות כניסה שמנהל לידים, הצטרפות לקבוצות, וקמפיינים לקהילת SLHNET.
+                ניתן לחבר אותו לאתר ולמנוע הניתוח על ידי קישורים ו-Webhook.
+            </p>
+            <p>
+                ברמת הקוד, Botshop נמצא בתיקייה <code>botshop/</code> במונורפו, וכולל:
+            </p>
+            <ul>
+                <li>בוט טלגרם שמטפל ברישום והפניות.</li>
+                <li>דפי נחיתה (templates/static) לשיווק.</li>
+                <li>תיעוד מלא בפרק <code>docs/</code> של הפרויקט.</li>
+            </ul>
+            <p class="hint">
+                אפשר להוסיף כאן קישור ישיר לבוט הטלגרם שלך (למשל <code>https://t.me/YourBot</code>) או לשרת production של Botshop.
             </p>
         </section>
 
