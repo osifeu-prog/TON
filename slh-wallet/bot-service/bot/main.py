@@ -12,13 +12,17 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from .config import TELEGRAM_BOT_TOKEN, API_BASE_URL
+from .config import TELEGRAM_BOT_TOKEN, API_BASE_URL, TON_API_BASE_URL, PROJECT_SITE_URL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("slh_wallet.bot")
 
 API_TIMEOUT: Final = 10.0
 
+
+# =========================================================
+# פקודות בסיס
+# =========================================================
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -34,13 +38,14 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "הארנק הקהילתי של SLH מאפשר לך:\n"
         "• לרשום כתובת BNB/SLH למערכת\n"
         "• לראות יתרות חיות מרשת BNB\n"
-        "• להתחבר למערכת האקו-סיסטם של SLH\n\n"
+        "• להתחבר לאקו-סיסטם של SLH ו-TON\n\n"
         "פקודות עיקריות:\n"
         "/wallet – רישום/עדכון ארנק\n"
         "/set_wallet – שמירת כתובות הארנק\n"
         "/balances – צפייה ביתרות בזמן אמת\n"
+        "/ton_signal – ניתוח שוק מבוסס מנוע TON\n"
         "/help – סיכום כל האפשרויות\n\n"
-        "המערכת אינה דורשת סיסמה – רק טלגרם + כתובות ארנק."
+        f"🌍 אתר האקו-סיסטם: {PROJECT_SITE_URL}"
     )
     await update.effective_chat.send_message(text)
 
@@ -50,18 +55,27 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     פקודת עזרה – מציגה את כל הפקודות המרכזיות.
     """
     text = (
-        "📘 *עזרה – SLH Community Wallet*\n\n"
+        "📘 *עזרה – SLH Community Wallet & TON Engine*\n\n"
         "הפקודות הזמינות בבוט:\n\n"
         "• `/start` – מסך פתיחה והסבר כללי\n"
         "• `/wallet` – הסבר איך לרשום/לעדכן את הארנק שלך\n"
         "• `/set_wallet <כתובת_BNB> [כתובת_SLH]` – שמירת כתובות הארנק במערכת\n"
         "   - אם לא תשלח כתובת SLH, נשתמש באותה כתובת כמו BNB\n"
-        "• `/balances` – צפייה ביתרות חיות (BNB + SLH פנימי)\n\n"
-        "המערכת מחוברת לשרת ה-SLH ואל רשת BNB Smart Chain.\n"
-        "בעתיד יתווספו חיבור למנוע TON Trading Bot Pro ויכולות ניתוח מתקדמות."
+        "• `/balances` – צפייה ביתרות חיות (BNB + SLH פנימי)\n"
+        "• `/ton_signal [סימבול]` – ניתוח שוק ממנוע TON Trading Bot Pro\n"
+        "   - ברירת מחדל: `TONUSDT`\n\n"
+        "המערכת מחוברת ל:\n"
+        "• שרת SLH Wallet API\n"
+        "• מנוע TON Trading Bot Pro לניתוחי שוק\n\n"
+        f"🌍 אתר האקו-סיסטם: {PROJECT_SITE_URL}\n\n"
+        "_שום דבר כאן אינו ייעוץ השקעות – הכל לצורכי הדגמה בלבד._"
     )
     await update.effective_chat.send_message(text, parse_mode="Markdown")
 
+
+# =========================================================
+# פקודות ארנק
+# =========================================================
 
 async def cmd_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -167,6 +181,79 @@ async def cmd_balances(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.effective_chat.send_message(text, parse_mode="Markdown")
 
 
+# =========================================================
+# חיבור ל-TON Trading Bot Pro – /ton_signal
+# =========================================================
+
+async def cmd_ton_signal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    מבקש מהמנוע של TON ניתוח לסימבול מסוים.
+    שימוש:
+    /ton_signal
+    /ton_signal TONUSDT
+    /ton_signal BNBUSDT
+    """
+    user = update.effective_user
+    if not user:
+        return
+
+    symbol = "TONUSDT"
+    if context.args:
+        # ניקוי + המרה ל-UPPER (TONUSDT, BNBUSDT וכו')
+        symbol = context.args[0].strip().upper()
+
+    try:
+        async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
+            resp = await client.get(
+                f"{TON_API_BASE_URL}/analysis",
+                params={"symbol": symbol},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:  # noqa: BLE001
+        logger.error("Error fetching TON signal: %s", e)
+        await update.effective_chat.send_message(
+            "❌ לא הצלחתי לקבל ניתוח מהמנוע של TON. נסה שוב מאוחר יותר."
+        )
+        return
+
+    current = data.get("current_data", {}) or {}
+    decision = data.get("trading_decision", {}) or {}
+
+    price = current.get("price")
+    change = current.get("price_change_percent")
+    action = decision.get("action", "UNKNOWN")
+    confidence = decision.get("confidence_score", 0.0)
+
+    # המרה לאחוז
+    confidence_pct = confidence * 100 if confidence <= 1 else confidence
+
+    analysis_url = f"{TON_API_BASE_URL}/analysis?symbol={symbol}"
+
+    text_lines = [
+        f"📊 *TON Trading Bot Pro – ניתוח עבור:* `{symbol}`\n",
+    ]
+
+    if price is not None:
+        text_lines.append(f"💰 מחיר נוכחי: `{price}` USDT")
+    if change is not None:
+        text_lines.append(f"📈 שינוי 24h: `{change}%`")
+
+    text_lines.append(f"\n🎯 *החלטת מנוע:* `{action}`")
+    text_lines.append(f"🧠 *רמת ביטחון משוערת:* `{confidence_pct:.1f}%`\n")
+    text_lines.append(f"🌐 *API חי:* {analysis_url}\n")
+    text_lines.append("_הנתונים לצורכי הדגמה בלבד, לא ייעוץ השקעות._")
+
+    await update.effective_chat.send_message(
+        "\n".join(text_lines),
+        parse_mode="Markdown",
+    )
+
+
+# =========================================================
+# main – רישום handlers והרצה
+# =========================================================
+
 def main() -> None:
     """
     נקודת הכניסה הראשית – הפעלת הבוט במצב polling.
@@ -178,6 +265,7 @@ def main() -> None:
     app.add_handler(CommandHandler("wallet", cmd_wallet))
     app.add_handler(CommandHandler("set_wallet", cmd_set_wallet))
     app.add_handler(CommandHandler("balances", cmd_balances))
+    app.add_handler(CommandHandler("ton_signal", cmd_ton_signal))
 
     logger.info("Starting SLH Wallet bot (polling)...")
     app.run_polling()
